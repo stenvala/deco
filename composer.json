@@ -1,0 +1,19 @@
+{
+  "name": "stenvala/deco",  
+  "description": "Deco is a DECorative Object oriented backend framwork for building RESTful applications.",
+  "version": "0.9.0.0",
+  "homepage": "http://www.github.com/stenvala/deco",
+  "keywords": "php, framework, rest, database",
+  "license": "MIT",
+  "authors": [
+    {
+      "name": "Antti Stenvall",
+      "email": "antti@stenvall.fi",
+      "homepage": "http://www.mathcodingclub.com",
+      "permission": "Founder, Developer"
+    }
+  ], 
+  "require": {
+    "slim/slim": "3.*"
+  }  
+}
