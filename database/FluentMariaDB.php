@@ -17,8 +17,8 @@ class FluentMariaDB {
       self::$conn = new \PDO($dsn, $username, $password);
       self::$conn->setAttribute(\PDO::ATTR_ERRMODE, \PDO::ERRMODE_EXCEPTION);
       self::$conn->exec("set names utf8");
-      self::$fpdo = new \FluentPDO(self::$conn);
-      // self::$conn->exec("set time_zone='+00:00'"); // always return in UTC, unfortunately this works differently in osx and linux
+      self::$fpdo = new \FluentPDO(self::$conn);      
+      self::$conn->exec("set time_zone='+00:00'");
     } catch (\PDOException $e) {
       throw new exc\Database(
       array('msg' => 'Database initialization error.',

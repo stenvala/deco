@@ -13,7 +13,7 @@ abstract class ServiceOnRow {
 
   use \deco\essentials\traits\deco\Annotations;
 
-  use \deco\essentials\traits\database\FluentMariaDB;
+use \deco\essentials\traits\database\FluentMariaDB;
 
   /**
    * @passThrough: true
@@ -48,9 +48,9 @@ abstract class ServiceOnRow {
   }
 
   // Creates main object for the class
-  static public function create($data) {    
-    $obj = new static();    
-    $obj->createInstance($data);    
+  static public function create($data) {
+    $obj = new static();
+    $obj->createInstance($data);
     $obj->createOnConstructObjects();
     return $obj;
   }
@@ -60,8 +60,8 @@ abstract class ServiceOnRow {
       $cls = get_called_class();
       throw new exc\Service(array('msg' => "Cannot create instance in '$cls'. She already exists."));
     }
-    $cls = self::getClassAnnotationValue('contains');    
-    $this->instance = $cls::create($data);    
+    $cls = self::getClassAnnotationValue('contains');
+    $this->instance = $cls::create($data);
   }
 
   protected function createOnConstructObjects() {
@@ -83,7 +83,7 @@ abstract class ServiceOnRow {
     }
   }
 
-  protected function populateCollection(ann\AnnotationCollection $annCol) {    
+  protected function populateCollection(ann\AnnotationCollection $annCol) {
     $propertyName = $annCol->reflector->getName();
     $repositoryCls = $annCol->getValue('collection');
     $mainCls = self::getClassAnnotationValue('contains');
@@ -92,22 +92,52 @@ abstract class ServiceOnRow {
     $search = array($foreign['column'] => $foreignValue);
     if ($repositoryCls::isSubclassOf('\deco\essentials\prototypes\mono\ServiceOnCollection')) {
       $this->$propertyName = $repositoryCls::initBy($search);
-    } else {      
-      $this->$propertyName = new Rows($repositoryCls);      
+    } else {
+      $this->$propertyName = new Rows($repositoryCls);
       $this->$propertyName->initBy($search);
-    }    
+    }
   }
 
   protected function populateRepository(ann\AnnotationCollection $annCol) {
     $propertyName = $annCol->reflector->getName();
-    $mainCls = self::getClassAnnotationValue('contains');
     $repositoryCls = $annCol->getValue('repository');
-    $foreign = $repositoryCls::getReferenceToClass($mainCls);
-    $foreignValue = $this->instance->get($foreign['parentColumn']);
-    try {
-      $this->$propertyName = $repositoryCls::initBy($foreign['column'], $foreignValue);
-    } catch (\Exception $e) {
-      $this->$propertyName = null;
+    if ($annCol->getValue('foreign', true)) {
+      $mainCls = self::getClassAnnotationValue('contains');
+      $foreign = $repositoryCls::getReferenceToClass($mainCls);
+      $foreignValue = $this->instance->get($foreign['parentColumn']);
+      try {
+        $this->$propertyName = $repositoryCls::initBy($foreign['column'], $foreignValue);
+      } catch (\Exception $e) {
+        $this->$propertyName = null;
+      }
+    } else {
+      $table = $repositoryCls::getTable();
+      $columns = $repositoryCls::getDatabaseHardColumnNames();      
+      $query = self::db()->fluent()->from($table)->select(null)->
+          select($columns);
+      $where = $annCol->getValue('where');
+      $whereColumn = is_array($where['column']) ? $where['column'] : array($where['column']);
+      $whereValues = is_array($where['value']) ? $where['value'] : array($where['value']);
+      foreach ($whereColumn as $key => $col) {
+        $val = $whereValues[$key];
+        if (is_numeric($val)) {
+          $query = $query->where($col, $val);
+        } else {
+          $val = $this->instance->get($val);          
+          $query = $query->where($col, $val);
+        }
+      }
+      $sort = $annCol->getValue('orderBy', array());
+      if (count($sort) > 0) {
+        $query = $query->orderBy($sort);
+      }
+      $query = $query->limit(1)->execute();
+      $row = self::db()->get($query);
+      if (!is_array($row)) {
+        $this->$propertyName = null;
+      } else {
+        $this->$propertyName = $repositoryCls::initFromRow($row);
+      }
     }
   }
 
@@ -158,11 +188,11 @@ abstract class ServiceOnRow {
         $this->$property = $serviceCls::create($data);
         return;
       }
-    } else if ($annCol->hasAnnotation('repository') && $annCol->getValue('createInstance',false)){
-      $cls = $annCol->getValue('repository');      
-      $parentContains = self::getClassAnnotationValue('contains');      
+    } else if ($annCol->hasAnnotation('repository') && $annCol->getValue('createInstance', false)) {
+      $cls = $annCol->getValue('repository');
+      $parentContains = self::getClassAnnotationValue('contains');
       $foreign = $cls::getReferenceToClass($parentContains);
-      $data[$foreign['column']] = $this->instance->get($foreign['parentColumn']);      
+      $data[$foreign['column']] = $this->instance->get($foreign['parentColumn']);
       $cls::create($data);
       return;
     }
@@ -187,7 +217,7 @@ abstract class ServiceOnRow {
       $property = $annCol->reflector->getName();
       if ($annCol->getValue('instanceOf', null) === 'value') {
         $data[$annCol->getValue('revealAs')] = $this->$property();
-      } else {        
+      } else {
         $data[$annCol->getValue('revealAs')] = is_null($this->$property) ? null : $this->$property()->get();
       }
     }
@@ -209,7 +239,9 @@ abstract class ServiceOnRow {
         continue;
       }
       $property = $annCol->reflector->getName();
-      if ($annCol->getValue('instanceOf', null) === 'value') {
+      if (is_null($this->$property)) {
+        $data[$annCol->getValue('revealAs')] = $this->$property;
+      } else if ($annCol->getValue('instanceOf', null) === 'value') {
         $data[$annCol->getValue('revealAs')] = $this->$property();
       } else {
         $data[$annCol->getValue('revealAs')] = $this->$property()->getHard();

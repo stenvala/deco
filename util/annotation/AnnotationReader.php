@@ -10,12 +10,12 @@ class AnnotationReader {
    * @return: \deco\essentials\util\annotation\AnnotationCollection
    */
   static public function getAllAnnotations($docComment, $reflector = null) {
-    $lines = explode(PHP_EOL, $docComment);    
+    $lines = explode(PHP_EOL, $docComment);
     $collection = new AnnotationCollection();
     $ann = null;
     foreach ($lines as $line) {
       $line = preg_replace('#//.*$#', '', $line); // remove comment at the end of line
-      if (preg_match('#\s@([a-zA-z]*)([\([private|protected|public]\)])?:(.*)#', $line, $matches)) {        
+      if (preg_match('#\s@([a-zA-z]*)([\([private|protected|public]\)])?:(.*)#', $line, $matches)) {
         $annotation = trim($matches[1]);
         $visibility = $matches[2];
         if (strlen($visibility) == 0) {
@@ -35,8 +35,8 @@ class AnnotationReader {
         } else {
           preg_match('#\((.*)\)#', $visibility, $vis);
           $visibility = $vis[1];
-        }        
-        $value = self::parseAnnotationValue($matches[3]);        
+        }
+        $value = self::parseAnnotationValue($matches[3]);
         $ann = new Annotation($annotation, $value, $visibility);
         $collection->set($ann);
       } else if (preg_match('#\\\\:(.*)#', $line, $matches)) { // needs to be array or dictionary
@@ -54,9 +54,9 @@ class AnnotationReader {
   static public function getAnnotationValue($docComment, $annotation, $default) {
     if (strlen($docComment) == 0) {
       return $default;
-    }    
+    }
     $annCol = self::getAllAnnotations($docComment);
-    return $annCol->getValue($annotation,$default);    
+    return $annCol->getValue($annotation, $default);
   }
 
   // get class annotations according to object inheritance hierarchy
@@ -74,7 +74,7 @@ class AnnotationReader {
   }
 
   static public function getObjectsTable($class) {
-    $ref = new \ReflectionClass($class);        
+    $ref = new \ReflectionClass($class);
     if (false !== ($customTable = self::getAnnotationValue($ref->getDocComment(), 'table', false))) {
       return $customTable;
     }
@@ -123,7 +123,7 @@ class AnnotationReader {
     $structure = array();
     $properties = $ref->getProperties();
     foreach ($properties as $property) {
-      $name = $property->getName();      
+      $name = $property->getName();
       $structure[$name] = self::getClassPropertyAnnotations($property);
     }
     return $structure;
@@ -173,7 +173,16 @@ class AnnotationReader {
   }
 
   static private function parseAnnotationValue($value) {
-    if (preg_match('#,#', $value)) {
+    if (preg_match('#:#', $value)) {
+      $dict = explode(';', $value);
+      $value = array();
+      foreach ($dict as $field) {
+        if (preg_match('#^([a-zA-Z]*):\s?(.*)#', trim($field), $keyAndValue)) {
+          $value[trim($keyAndValue[1])] = self::parseAnnotationValue($keyAndValue[2]);
+          //self::setAnnotationValueType($keyAndValue[2]);
+        }
+      }
+    } else if (preg_match('#,#', $value)) {
       $array = explode(',', $value);
       foreach ($array as $key => $value) {
         if (strlen(trim($value)) == 0) {
@@ -181,14 +190,6 @@ class AnnotationReader {
         }
       }
       $value = self::setAnnotationValueType($array);
-    } else if (preg_match('#:#', $value)) {
-      $dict = explode(';', $value);
-      $value = array();
-      foreach ($dict as $field) {
-        if (preg_match('#^([a-zA-Z]*):\s?(.*)#', trim($field), $keyAndValue)) {
-          $value[trim($keyAndValue[1])] = self::setAnnotationValueType($keyAndValue[2]);
-        }
-      }
     } else {
       $value = self::setAnnotationValueType($value);
     }
@@ -206,7 +207,7 @@ class AnnotationReader {
         settype($value, 'integer');
       } elseif ($value == 'true' || $value == 'false') {
         $value = filter_var($value, FILTER_VALIDATE_BOOLEAN);
-      } elseif (strtolower($value) == 'null'){
+      } elseif (strtolower($value) == 'null') {
         return null;
       }
     }
