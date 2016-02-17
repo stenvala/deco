@@ -6,7 +6,7 @@ use \deco\essentials\exception as exc;
 
 class FluentMariaDB {
 
-  private static $conn = null;
+  public static $conn = null;
   private static $fpdo = null;
   private static $transactionOngoing = false;
   private static $transactionAutoRollback = true;
@@ -82,6 +82,12 @@ class FluentMariaDB {
 
   public function execute($query) {
     if (is_string($query)) {
+      if (strlen($query) == 0){
+        return;
+      }
+      if ($this->fluent()->debug){
+        print "$query\n";
+      }
       $query = self::$conn->prepare($query);     
     }
     try {
@@ -112,7 +118,7 @@ class FluentMariaDB {
       $this->execute($query);
     }
     $ar = array();
-    while ($row = $query->fetch(\PDO::FETCH_ASSOC)) {
+    while ($row = $query->fetch(\PDO::FETCH_ASSOC)) {      
       if (is_null($indexColumn)) {
         array_push($ar, $row);
       } else {

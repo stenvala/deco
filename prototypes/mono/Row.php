@@ -32,12 +32,16 @@ use \deco\essentials\traits\deco\AnnotationsIncludingDatabaseProperties;
 
   public function __construct($id = null) {
     if (!is_null($id)) {
-      self::initBy('id', $id, $this);
+      if (!is_array($id)) {
+        self::DECOinitBy('id', $id, $this);
+      } else {
+        self::DECOinitByArray($id, $this);
+      }
     }
   }
 
   /**
-   * @call: $cls::initBy{Property}($value), $cls::initBy($property,$value) // with static, $obj cannot be given
+   * @call: $cls::initBy{Property}($value), $cls::initBy($property,$value) // $obj cannot be given, is for constructor help only
    * @return: instance of self
    * @throws: Deco, SingleDataModel
    */
@@ -48,18 +52,29 @@ use \deco\essentials\traits\deco\AnnotationsIncludingDatabaseProperties;
       array('msg' => "Instance of '$cls' cannot be initialized with property '$property'.",
       'params' => array('property' => $property, 'class' => $cls)));
     }
+    return self::DECOinitByArray(array(
+            $property => $value
+            ), $obj);
+  }
+
+  /**
+   * @call: $cls::initBy($dictionary) // $value is array, $obj cannot be given, is for constructor help only
+   * @return: instance of self
+   * @throws: Deco, SingleDataModel
+   */
+  static protected function DECOinitByArray($where, $obj = null) {
     if ($obj == null) {
       $obj = new static();
     }
-    $properties = self::getDatabaseHardColumnNames();        
+    $properties = self::getDatabaseHardColumnNames();
     $query = self::db()->fluent()->
-            from(self::getTable())->select(null)->select($properties)->where($property, $value)->execute();    
-    $data = self::db()->get($query);     
+            from(self::getTable())->select(null)->select($properties)->where($where)->execute();
+    $data = self::db()->get($query);
     if (!is_array($data)) {
       $cls = get_called_class();
       throw new exc\SingleDataModel(
-      array('msg' => "Instance of '$cls' not found by property '$property' and value '$value'.",
-      'params' => array('property' => $property, 'value' => $value, 'class' => $cls)));
+      array('msg' => "Instance of '$cls' not found with given search query.",
+      'params' => array('where' => $where, 'class' => $cls)));
     }
     $obj->setValuesToObject($data);
     return $obj;
@@ -109,9 +124,9 @@ use \deco\essentials\traits\deco\AnnotationsIncludingDatabaseProperties;
   }
 
   /**
-   * @call: $obj->get()  // $force cannot be applied externally
+   * @call: $obj->getLazy()  // returns also lazy properties, $force cannot be applied externally
    */
-  protected function DECOgetAll($force = false) {
+  protected function DECOgetLazy($force = false) {
     $anns = self::getForDatabaseProperties();
     $data = array();
     $lazyProperties = self::getAnnotationsForPropertiesHavingAnnotation('lazy', true);
@@ -123,21 +138,6 @@ use \deco\essentials\traits\deco\AnnotationsIncludingDatabaseProperties;
     $this->initLazy(array_keys($lazyProperties));
     foreach ($anns as $property => $annCol) {
       if ($force || $annCol->getValue('get', true)) {
-        $data[$property] = $this->$property;
-      }
-    }
-    return $data;
-  }
-
-  /**
-   * @call: $obj->getHard() // returns all but non-lazy properties, $force cannot be applied externally
-   */
-  protected function DECOgetHard($force = false) {
-    $anns = self::getForDatabaseProperties();
-    $data = array();
-    foreach ($anns as $property => $annCol) {
-      if (!$annCol->getValue('lazy', false) &&
-          ($force || $annCol->getValue('get', true))) {
         $data[$property] = $this->$property;
       }
     }
@@ -157,6 +157,21 @@ use \deco\essentials\traits\deco\AnnotationsIncludingDatabaseProperties;
     $this->setValuesToObject($data);
   }
 
+  /**
+   * @call: $obj->get() // returns all but non-lazy properties, $force cannot be applied externally
+   */
+  protected function DECOgetAll($force = false) {
+    $anns = self::getForDatabaseProperties();
+    $data = array();
+    foreach ($anns as $property => $annCol) {
+      if (!$annCol->getValue('lazy', false) &&
+          ($force || $annCol->getValue('get', true))) {
+        $data[$property] = $this->$property;
+      }
+    }
+    return $data;
+  }
+
   static public function getTable() {
     $calledAs = get_called_class();
     if (!array_key_exists($calledAs, self::$table)) {
@@ -168,16 +183,15 @@ use \deco\essentials\traits\deco\AnnotationsIncludingDatabaseProperties;
   /**
    * @call: $obj = $cls::create($dictionary)
    */
-  static protected function DECOcreate($data) {    
-    $data = self::checkCreateData($data); 
-    self::db()->transactionStart();    
-    $data = self::checkOrderColumnOnCreate($data);
-    self::maintainOrderKeyConsistency(self::CREATE, $data);    
-    $query = self::db()->fluent()->
-            insertInto(self::getTable())->values($data)->execute();    
-    // self::db()->execute($query);
+  static protected function DECOcreate($data) {
+    $data = self::checkCreateData($data);
+    self::db()->transactionStart();
+    $data = self::checkOrderColumnConsistencyOnCreate($data);
+    self::maintainOrderColumnConsistency(self::CREATE, $data);
+    self::db()->fluent()->
+        insertInto(self::getTable())->values($data)->execute();
     $id = self::db()->getLastInsertId();
-    self::db()->transactionCommit();    
+    self::db()->transactionCommit();
     return new static($id);
   }
 
@@ -197,6 +211,19 @@ use \deco\essentials\traits\deco\AnnotationsIncludingDatabaseProperties;
       'params' => array('property' => $key, 'class' => $cls, 'data' => $data)));
     }
     return $data;
+  }
+
+  public function is($data) {
+    foreach ($data as $key => $value) {
+      if (is_array($value)) {
+        if (!in_array($this->$key, $value)) {
+          return false;
+        }
+      } else if ($this->$key != $value) {
+        return false;
+      }
+    }
+    return true;
   }
 
   /**
@@ -230,27 +257,26 @@ use \deco\essentials\traits\deco\AnnotationsIncludingDatabaseProperties;
       }
     }
     // check order column
-    $data = self::checkOrderColumnOnCreate($data, $this);
+    $data = self::checkOrderColumnConsistencyOnCreate($data, $this);
     // 
     self::db()->transactionStart();
-    self::maintainOrderKeyConsistency(self::UPDATE, $data, $this);
-    $query = self::db()->fluent()->
-            update(self::getTable())->set($data)->where('id', $this->getId());
-    self::db()->execute($query);
+    self::maintainOrderColumnConsistency(self::UPDATE, $data, $this);
+    self::db()->fluent()->
+        update(self::getTable())->set($data)->where('id', $this->getId())->execute();
     self::db()->transactionCommit();
     $this->setValuesToObject($data);
   }
 
   public function delete() {
     self::db()->transactionStart();
-    self::maintainOrderKeyConsistency(self::DELETE, $this->DECOgetAll(true), $this);    
+    self::maintainOrderColumnConsistency(self::DELETE, $this->DECOgetAll(true), $this);
     self::db()->fluent()->
-        deleteFrom(self::getTable())->where('id', $this->getId())->execute();    
+        deleteFrom(self::getTable())->where('id', $this->getId())->execute();
     self::db()->transactionCommit();
     return null;
   }
 
-  static protected function checkOrderColumnOnCreate($data, $instance = null) {
+  static protected function checkOrderColumnConsistencyOnCreate($data, $instance = null) {
     $anns = self::getAnnotationsForPropertiesHavingAnnotation('order');
     if (count($anns) == 0) {
       return $data;
@@ -263,8 +289,8 @@ use \deco\essentials\traits\deco\AnnotationsIncludingDatabaseProperties;
     if (array_key_exists($column, $data) && is_null($instance)) {
       return $data;
     }
-    $groupColumn = $annCol->getValue('orderGroupBy', array());    
-    $where = array();    
+    $groupColumn = $annCol->getValue('orderGroupBy', array());
+    $where = array();
     foreach ($groupColumn as $gColumn) {
       if (!array_key_exists($gColumn, $data) &&
           self::getPropertyAnnotationValue($gColumn, 'default', false) === false && is_null($instance)) {
@@ -304,7 +330,7 @@ use \deco\essentials\traits\deco\AnnotationsIncludingDatabaseProperties;
     return $data;
   }
 
-  static protected function maintainOrderKeyConsistency($procedure, $data, $instance = null) {
+  static protected function maintainOrderColumnConsistency($procedure, $data, $instance = null) {
     $anns = self::getAnnotationsForPropertiesHavingAnnotation('order');
     if (count($anns) > 1) {
       $cls = get_called_class();
@@ -319,7 +345,7 @@ use \deco\essentials\traits\deco\AnnotationsIncludingDatabaseProperties;
       }
       if ($procedure == self::CREATE && !array_key_exists($column, $data)) {
         return;
-      }      
+      }
       $newValue = $procedure == self::DELETE ? $instance->DECOget($column, true) : $data[$column];
       $where = array();
       foreach ($groupColumn as $gColumn) {
@@ -340,7 +366,7 @@ use \deco\essentials\traits\deco\AnnotationsIncludingDatabaseProperties;
                   update($table)->set(array($column => new \FluentLiteral("$column - 1")))->where("$column > ?", $newValue)->where($where);
           break;
         case self::UPDATE:
-          $query = $instance->maintainSortKeyConsistencyForUpdate($data, $column, $groupColumn, $table);
+          $query = $instance->maintainOrderColumnConsistencyForUpdate($data, $column, $groupColumn, $table);
           break;
       }
       if (!is_null($query)) {
@@ -349,7 +375,7 @@ use \deco\essentials\traits\deco\AnnotationsIncludingDatabaseProperties;
     }
   }
 
-  private function maintainSortKeyConsistencyForUpdate($data, $column, $groupColumn, $table) {
+  private function maintainOrderColumnConsistencyForUpdate($data, $column, $groupColumn, $table) {
     $newValue = $data[$column];
     $oldValue = $this->DECOget($column, true);
     $didChangeGroup = false;
@@ -368,8 +394,8 @@ use \deco\essentials\traits\deco\AnnotationsIncludingDatabaseProperties;
     }
     $query = null;
     if ($didChangeGroup) {
-      self::maintainOrderKeyConsistency(self::DELETE, $this->DECOgetAll(true), $this);
-      self::maintainOrderKeyConsistency(self::CREATE, $data, null);
+      self::maintainOrderColumnConsistency(self::DELETE, $this->DECOgetAll(true), $this);
+      self::maintainOrderColumnConsistency(self::CREATE, $data, null);
       return null;
     } else if ($newValue > $oldValue) {
       $query = self::db()->fluent()->
@@ -424,41 +450,44 @@ use \deco\essentials\traits\deco\AnnotationsIncludingDatabaseProperties;
     throw new exc\Database(array('msg' => "Object '$cls' does not have a foreign key that refers to '$table'."));
   }
 
-  public function __call($method, $parameters) {
-    if ($method == 'getHard') {
-      return $this->DECOgetHard();
+  public function __call($method, $arguments) {
+    if ($method == 'getLazy') {
+      return $this->DECOgetLazy();
     } else if (preg_match('#^get[A-Z]#', $method)) {
       $property = lcfirst(preg_replace('#^get#', '', $method));
       return $this->DECOget($property);
     } else if (preg_match('#^get$#', $method)) {
-      if (count($parameters) == 1) {
-        return $this->DECOget($parameters[0]);
+      if (count($arguments) == 1) {
+        return $this->DECOget($arguments[0]);
       }
       return $this->DECOgetAll();
     } else if (preg_match('#^set[A-Z]#', $method)) {
       $property = lcfirst(preg_replace('#^set#', '', $method));
-      return $this->DECOset($property, $parameters[0]);
+      return $this->DECOset($property, $arguments[0]);
     } else if (preg_match('#^set$#', $method)) {
-      if (count($parameters) == 2) {
-        return $this->DECOset($parameters[0], $parameters[1]);
+      if (count($arguments) == 2) {
+        return $this->DECOset($arguments[0], $arguments[1]);
       }
-      return $this->DECOsetAll($parameters[0]);
+      return $this->DECOsetAll($arguments[0]);
     } else if (method_exists(__CLASS__, "DECO$method")) {
-      return call_user_func_array(array($this, "DECO$method"), $parameters);
+      return call_user_func_array(array($this, "DECO$method"), $arguments);
     } else {
       $cls = get_called_class();
       throw new exc\Magic(array('msg' => "Called unknown magic method '$method' in '$cls'."));
     }
   }
 
-  static public function __callStatic($method, $parameters) {
+  static public function __callStatic($method, $arguments) {
     if ($method == 'initBy') {
-      return self::DECOinitBy($parameters[0], $parameters[1]);
+      if (count($arguments) == 1) {
+        return self::DECOinitByArray($arguments[0]);
+      }
+      return self::DECOinitBy($arguments[0], $arguments[1]);
     } else if (preg_match('#^initBy[A-Z]#', $method)) {
       $property = preg_replace('#^initBy#', '', $method);
-      return self::DECOinitBy(lcfirst($property), $parameters[0]);
+      return self::DECOinitBy(lcfirst($property), $arguments[0]);
     } else if (method_exists(__CLASS__, "DECO$method")) {
-      return forward_static_call_array(array(__CLASS__, "DECO$method"), $parameters);
+      return forward_static_call_array(array(__CLASS__, "DECO$method"), $arguments);
     } else {
       $cls = get_called_class();
       throw new exc\Magic(array('msg' => "Called unknown magic method '$method' in '$cls'."));

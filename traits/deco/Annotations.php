@@ -8,13 +8,19 @@ trait Annotations {
 
   private static $classAnnotations = array();
   private static $methodAnnotations = array();
-  private static $propertyAnnotations = array();  
+  private static $propertyAnnotations = array();
 
   // Class
   // Returns AnnotationCollection
-  public static function getAnnotationsForClass() {   
+  public static function getClassName() {
+    $cls = get_called_class();
+    preg_match('#\\\\([A-Za-z]*)$#', $cls, $match);
+    return $match[1];
+  }
+
+  public static function getAnnotationsForClass() {
     $cls = self::DECOgetCalledClass();
-    if (!array_key_exists($cls, self::$classAnnotations)) {      
+    if (!array_key_exists($cls, self::$classAnnotations)) {
       self::$classAnnotations[$cls] = ann\AnnotationReader::getClassAnnotations($cls);
     }
     return self::$classAnnotations[$cls];
@@ -26,14 +32,14 @@ trait Annotations {
 
   public static function getClassAnnotationValue($annotation, $default = null) {
     return self::getAnnotationsForClass()->getValue($annotation, $default);
-  }    
+  }
 
   // Method
   // Returns array of AnnotationCollections, keys are method names
   public static function getAnnotationsForMethods() {
     $cls = self::DECOgetCalledClass();
-    if (!array_key_exists($cls, self::$methodAnnotations)) {      
-    self::$methodAnnotations[$cls] = ann\AnnotationReader::getClassMethodsAnnotations($cls);
+    if (!array_key_exists($cls, self::$methodAnnotations)) {
+      self::$methodAnnotations[$cls] = ann\AnnotationReader::getClassMethodsAnnotations($cls);
     }
     return self::$methodAnnotations[$cls];
   }
@@ -63,10 +69,14 @@ trait Annotations {
   // Returns array of AnnotationCollections, keys are property names
   public static function getAnnotationsForProperties() {
     $cls = self::DECOgetCalledClass();
-    if (!array_key_exists($cls,self::$propertyAnnotations)) {      
+    if (!array_key_exists($cls, self::$propertyAnnotations)) {
       self::$propertyAnnotations[$cls] = ann\AnnotationReader::getClassPropertiesAnnotations($cls);
     }
     return self::$propertyAnnotations[$cls];
+  }
+
+  public static function getPropertyNames() {
+    return array_keys(self::getAnnotationsForProperties());
   }
 
   public static function getPropertyAnnotations($property) {
@@ -82,11 +92,11 @@ trait Annotations {
   }
 
   // Returns array of AnnotationCollections, keys are property names
-  public static function getAnnotationsForPropertiesHavingAnnotation($name, $value = null) {    
+  public static function getAnnotationsForPropertiesHavingAnnotation($name, $value = null) {
     $properties = self::getAnnotationsForProperties();
     $matchValue = func_num_args() == 2;
     $filter = function($annotation) use ($name, $value, $matchValue) {
-      if ($annotation->hasAnnotation($name)) {        
+      if ($annotation->hasAnnotation($name)) {
         if ($matchValue && $annotation->getValue($name) != $value) {
           return false;
         }
@@ -96,7 +106,23 @@ trait Annotations {
     };
     return array_filter($properties, $filter);
   }
-  
+
+  // Returns array of AnnotationCollections, keys are property names
+  public static function getAnnotationsForPropertiesNotHavingAnnotation($name, $value = null) {
+    $properties = self::getAnnotationsForProperties();
+    $matchValue = func_num_args() == 2;
+    $filter = function($annotation) use ($name, $value, $matchValue) {
+      if ($annotation->hasAnnotation($name)) {
+        if ($matchValue && $annotation->getValue($name) != $value) {
+          return true;
+        }
+        return false;
+      }
+      return true;
+    };
+    return array_filter($properties, $filter);
+  }
+
   // Returns array of AnnotationCollections, keys are property names
   public static function getAnnotationsForPropertiesHavingAnnotationWithProperty($name, $property, $value = null) {
     $properties = self::getAnnotationsForProperties();

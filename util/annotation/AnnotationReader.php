@@ -173,15 +173,32 @@ class AnnotationReader {
   }
 
   static private function parseAnnotationValue($value) {
-    if (preg_match('#:#', $value)) {
-      $dict = explode(';', $value);
-      $value = array();
-      foreach ($dict as $field) {
-        if (preg_match('#^([a-zA-Z]*):\s?(.*)#', trim($field), $keyAndValue)) {
-          $value[trim($keyAndValue[1])] = self::parseAnnotationValue($keyAndValue[2]);
-          //self::setAnnotationValueType($keyAndValue[2]);
+    $value = trim($value);       
+    if (preg_match('#:#', $value)) {      
+      $array = array();      
+      while (true){                
+        preg_match('#^([^\:]*)#', $value, $matches);        
+        if (count($matches) == 0 || strlen($matches[1]) == 0){
+          break;
         }
-      }
+        $key = trim($matches[1]);        
+        $value = trim(str_replace("$key:","",$value));        
+        // search for rest
+        if (substr($value,0,1) == '"'){
+          // make this recursive in the future, it should be
+          // http://stackoverflow.com/questions/17786433/regex-to-match-nested-json-objects
+          // (?<=\{)\s*[^{]*?(?=[\},])
+          
+          preg_match('#"(.*)"(;|$)#',$value,$matches);          
+          $array[$key] = self::parseAnnotationValue($matches[1]);                    
+          $value = substr($value,strlen($matches[0])+1);
+        } else {          
+          preg_match('#^[^;|$]*#',$value,$matches);          
+          $array[$key] = $matches[0];
+          $value = substr($value,strlen($matches[0])+1);
+        }
+      }           
+      $value = $array;       
     } else if (preg_match('#,#', $value)) {
       $array = explode(',', $value);
       foreach ($array as $key => $value) {
@@ -189,11 +206,9 @@ class AnnotationReader {
           unset($array[$key]);
         }
       }
-      $value = self::setAnnotationValueType($array);
-    } else {
-      $value = self::setAnnotationValueType($value);
+      $value = $array;
     }
-    return $value;
+    return self::setAnnotationValueType($value);
   }
 
   static private function setAnnotationValueType($value) {
