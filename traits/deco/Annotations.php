@@ -6,33 +6,10 @@ use \deco\essentials\util\annotation as ann;
 
 trait Annotations {
 
-  private static $classAnnotations = array();
+  use AnnotationsForClass;
+  
   private static $methodAnnotations = array();
   private static $propertyAnnotations = array();
-
-  // Class
-  // Returns AnnotationCollection
-  public static function getClassName() {
-    $cls = get_called_class();
-    preg_match('#\\\\([A-Za-z]*)$#', $cls, $match);
-    return $match[1];
-  }
-
-  public static function getAnnotationsForClass() {
-    $cls = self::DECOgetCalledClass();
-    if (!array_key_exists($cls, self::$classAnnotations)) {
-      self::$classAnnotations[$cls] = ann\AnnotationReader::getClassAnnotations($cls);
-    }
-    return self::$classAnnotations[$cls];
-  }
-
-  public static function getClassAnnotation($annotation) {
-    return self::getAnnotationsForClass()->get($annotation);
-  }
-
-  public static function getClassAnnotationValue($annotation, $default = null) {
-    return self::getAnnotationsForClass()->getValue($annotation, $default);
-  }
 
   // Method
   // Returns array of AnnotationCollections, keys are method names
@@ -87,7 +64,7 @@ trait Annotations {
     return self::getAnnotationsForProperties()[$property]->get($annotation);
   }
 
-  public static function getPropertyAnnotationValue($property, $annotation, $default = null) {
+  public static function getPropertyAnnotationValue($property, $annotation, $default = null) {        
     return self::getAnnotationsForProperties()[$property]->getValue($annotation, $default);
   }
 
@@ -138,11 +115,7 @@ trait Annotations {
     };
     return array_filter($properties, $filter);
   }
-
-  public static function isSubClassOf($class) {
-    $ref = new \ReflectionClass(get_called_class());
-    return $ref->isSubclassOf($class);
-  }
+      
 
   protected static function DECOgetCalledClass() {
     return get_called_class();

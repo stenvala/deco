@@ -449,6 +449,12 @@ use \deco\essentials\traits\deco\AnnotationsIncludingDatabaseProperties;
     $cls = get_called_class();
     throw new exc\Database(array('msg' => "Object '$cls' does not have a foreign key that refers to '$table'."));
   }
+  
+  /*
+  static public function getMasterClass(){
+    return get_called_class();
+  } 
+   */
 
   public function __call($method, $arguments) {
     if ($method == 'getLazy') {

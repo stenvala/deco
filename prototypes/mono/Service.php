@@ -50,10 +50,10 @@ use \deco\essentials\traits\database\FluentMariaDB;
    */
   protected function DECOinitFromRow($property, $data) {
     $cls = self::getPropertyAnnotationValue($property, 'contains');
-    if (self::getPropertyAnnotationValue($property, 'collection', false)) {
+    if ($cls::isListOfService()) {
       $obj = $cls::initFromRow($data);
       if (!isset($this->$property)) {
-        $this->$property = new ListOf($cls);
+        $this->$property = new $cls();
       }
       $obj = $this->$property->add($obj);
     } else {
@@ -63,7 +63,8 @@ use \deco\essentials\traits\database\FluentMariaDB;
     return $obj;
   }
 
-  public function load($recursionDepth = 0, $disallow = array()) {
+  // load all data recursively 
+  public function loadAll($recursionDepth = 0, $disallow = array()) {
     if ($recursionDepth < 0) {
       return;
     }
@@ -82,7 +83,7 @@ use \deco\essentials\traits\database\FluentMariaDB;
       if (!isset($this->$property)) {
         $this->DECOloadProperty($property);
         if (is_object($this->$property)) {
-          $this->$property->load($recursionDepth - 1, $disallow);
+          $this->$property->loadAll($recursionDepth - 1, $disallow);
         }
       }
     }
@@ -104,15 +105,15 @@ use \deco\essentials\traits\database\FluentMariaDB;
           }
         }
         $q = $q->where($query['where']);
-      }      
-      if (array_key_exists('orderBy',$query)){
+      }
+      if (array_key_exists('orderBy', $query)) {
         $q = $q->orderBy($query['orderBy']);
       }
-      if (array_key_exists('limit',$query)){
+      if (array_key_exists('limit', $query)) {
         $q = $q->limit($query['limit']);
       }
       $data = self::db()->get($q->execute());
-      $type = self::getPropertyAnnotationValue($property, 'type', false);      
+      $type = self::getPropertyAnnotationValue($property, 'type', false);
       if ($type == 'array') {
         $this->$property = $data;
       } else {
@@ -127,7 +128,8 @@ use \deco\essentials\traits\database\FluentMariaDB;
     $annCol = self::getMasterAnnotationCollection();
     $masterCls = $annCol->getValue('contains');
     $masterProperty = $annCol->reflector->name;
-    if (!self::getPropertyAnnotationValue($property, 'collection', false) &&
+    $isCollection = $cls::isListOfService();    
+    if (!$isCollection &&
         !self::getPropertyAnnotationValue($property, 'parent', false)
     ) {
       $foreign = $masterCls::getReferenceToClass($cls);
@@ -139,7 +141,7 @@ use \deco\essentials\traits\database\FluentMariaDB;
       if (self::getPropertyAnnotationValue($property, 'parent', false)) {
         $this->$property = new $cls($masterValue, $foreign['column']);
       } else {
-        $this->$property = new ListOf($cls);
+        $this->$property = new $cls();
         $ar = array('where', array($foreign['column'] => $masterValue));
         if (!is_null($guide)) {
           $ar = array_merge($ar, $guide);
@@ -203,11 +205,9 @@ use \deco\essentials\traits\database\FluentMariaDB;
     foreach ($properties as $property => $annCol) {
       $key = $annCol->getValue('revealAs', $property);
       if (isset($this->$property)) {
-        if (is_object($this->$property)) {          
-          error_log($property);
+        if (is_object($this->$property)) {
           $data[$key] = $this->$property->getLazy();
         } else {
-          error_log('VALUE: ' . $property);
           $data[$key] = $this->$property;
         }
       }
@@ -265,7 +265,7 @@ use \deco\essentials\traits\database\FluentMariaDB;
   protected function DECOadd($property, $data) {
     $cls = self::getPropertyAnnotationValue($property, 'contains');
     if (!isset($this->$property)) {
-      $this->$property = new ListOf($cls);
+      $this->$property = new $cls();
     }
     $annCol = self::getMasterAnnotationCollection();
     $masterCls = $annCol->getValue('contains');
@@ -311,9 +311,12 @@ use \deco\essentials\traits\database\FluentMariaDB;
       return call_user_func_array(array($this, 'get'), array_merge(array(preg_replace('#^get#', '', $name)), $args));
     } if (preg_match('#^load[A-Z][A-Za-z]*$#', $name)) {
       return call_user_func_array(array($this, 'DECOloadProperty'), array_merge(array(preg_replace('#^load#', '', $name)), $args));
+    } if ($name == 'load') {
+      return call_user_func_array(array($this, 'DECOloadProperty'), $args);
     } if (preg_match('#^set[A-Z][A-Za-z]*$#', $name)) {
       $property = preg_replace('#^set#', '', $name);
-      if (self::getPropertyAnnotationValue($property, 'collection', false)) {
+      $cls = self::getPropertyAnnotationValue($property, 'contains');
+      if ($cls::isCollectionisListOfService()) {
         return $this->$property->set($args[0], $args[1]);
       }
       return $this->DECOset($property, $args[0]);

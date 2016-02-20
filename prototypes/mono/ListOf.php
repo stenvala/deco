@@ -4,6 +4,8 @@ namespace deco\essentials\prototypes\mono;
 
 class ListOf {
 
+  use \deco\essentials\traits\deco\AnnotationsForClass;
+
   use \deco\essentials\traits\database\FluentMariaDB;
 
   private $sort = array();
@@ -38,9 +40,9 @@ class ListOf {
     return $obj;
   }
 
-  public function load($recursionDepth = 0, $disallow = array()) {
+  public function loadAll($recursionDepth = 0, $disallow = array()) {
     foreach ($this->objects as $obj) {
-      $obj->load($recursionDepth, $disallow);
+      $obj->loadAll($recursionDepth, $disallow);
     }
     return $disallow;
   }
@@ -62,8 +64,8 @@ class ListOf {
     if (array_key_exists('where', $guide)) {
       $query = $query->where($guide['where']);
     }
-    if (array_key_exists('sort', $guide)) {
-      $query = $query->orderBy($guide['sort']);
+    if (array_key_exists('orderBy', $guide)) {
+      $query = $query->orderBy($guide['orderBy']);
     } else {
       $sort = $cls::getDatabaseSortColumns();
       if (count($sort)) {
@@ -72,6 +74,9 @@ class ListOf {
     }
     if (array_key_exists('limit', $guide)) {
       $query = $query->limit($guide['limit']);
+    }
+    if (array_key_exists('groupBy',$guide)){
+      $query = $query->groupBy($guide['groupBy']);
     }
     $data = self::db()->getAsArray($query->execute());
     foreach ($data as $row) {
@@ -123,11 +128,35 @@ class ListOf {
   private function createQueryRecursively($parent, $children, $query) {
     $table = $parent::getTable();
     if (array_key_exists('init', $children)) {
-      foreach ($children['init'] as $child) {
-        $childSer = preg_replace('#\\\\[A-Za-z]*$#', "\\$child", $parent);
+      foreach ($children['init'] as $child) {        
+        $childSer = $parent::getPropertyAnnotationValue($child,'contains');// preg_replace('#\\\\[A-Za-z]*$#', "\\$child", $parent);        
+        $childTable = $childSer::getTable();                       
+        print $childSer . PHP_EOL . $parent . PHP_EOL;
+        if ($childSer::getTable() != $parent::getTable()) {                                                  
+          if (!$childSer::isListOfService() &&
+              !$parent::getPropertyAnnotationValue($child, 'parent', false)) {                        
+            $foreign = $parent::getReferenceToClass($childSer);
+            $query = $query->innerJoin("$childTable ON $table.{$foreign['column']} = $childTable.{$foreign['parentColumn']}");
+          } else {           
+            $foreign = $childSer::getReferenceToClass($parent);
+            $query = $query->innerJoin("$childTable ON $childTable.{$foreign['column']} = $table.{$foreign['parentColumn']}");
+          }
+          if (array_key_exists($child, $children)) {            
+            $query = $this->createQueryRecursively($childSer, $children[$child], $query);
+          }
+        }        
+        // get columns
+        $columns = $childSer::getDatabaseHardColumnNames();
+        $query = $query->select(self::getSelectInJoin($childTable, $columns));                
+      }
+    }
+    // 
+    if (array_key_exists('use', $children)) {
+      foreach ($children['use'] as $child) {
+        $childSer = $parent::getPropertyAnnotationValue($child,'contains'); //preg_replace('#\\\\[A-Za-z]*$#', "\\$child", $parent);
         $childTable = $childSer::getTable();
-        if ($childSer != $parent) {
-          if (!$parent::getPropertyAnnotationValue($child, 'collection', false) &&
+        if ($childSer::getTable() != $parent::getTable()) {
+          if (!$childSer::isListOfService() &&
               !$parent::getPropertyAnnotationValue($child, 'parent', false)) {
             $foreign = $parent::getReferenceToClass($childSer);
             $query = $query->innerJoin("$childTable ON $table.{$foreign['column']} = $childTable.{$foreign['parentColumn']}");
@@ -139,31 +168,8 @@ class ListOf {
             $query = $this->createQueryRecursively($childSer, $children[$child], $query);
           }
         }
-        // get columns
-        $columns = $childSer::getDatabaseHardColumnNames();
-        $query = $query->select(self::getSelectInJoin($childTable, $columns));
       }
-    }
-    // 
-    if (array_key_exists('use', $children)) {
-      foreach ($children['use'] as $child) {
-        $childSer = preg_replace('#\\\\[A-Za-z]*$#', "\\$child", $parent);
-        $childTable = $childSer::getTable();
-        if ($child != $parent) {
-          if (!$parent::getPropertyAnnotationValue($child, 'collection', false) &&
-              !$parent::getPropertyAnnotationValue($child, 'parent', false)) {
-            $foreign = $parent::getReferenceToClass($childSer);
-            $query = $query->innerJoin("$childTable ON $table.{$foreign['column']} = $childTable.{$foreign['parentColumn']}");
-          } else {
-            $foreign = $childSer::getReferenceToClass($parent);
-            $query = $query->innerJoin("$childTable ON $childTable.{$foreign['column']} = $table.{$foreign['parentColumn']}");
-          }
-          if (array_key_exists($child, $children)) {
-            $query = $this->createQueryRecursively($child, $children[$child], $query);
-          }
-        }
-      }
-    }
+    }    
     return $query;
   }
 
@@ -248,27 +254,22 @@ class ListOf {
     $data = null;
     foreach ($this->sort as $ind => $id) {
       $obj = call_user_func_array(array($this->objects[$id], $name), $args);
-      if ($ind == 0) {
+      if ($ind == 0 && is_object($obj)) {
         $instance = $this->instance;
         $cls = $instance::getPropertyAnnotationValue($name, 'contains', false);
         if ($data != false) {
           $data = new ListOf($cls);
         }
+      } else if ($ind == 0) {
+        $data = array();
       }
-      if (!is_null($data)) {
+      if (is_object($obj)) {
         $data->add($obj);
+      } else {
+        array_push($data, $obj);
       }
     }
     return $data;
-  }
-
-  static public function __callStatic($name, $args) {
-    if (0) {
-      
-    } else { // delegate to master
-      $cls = $this->instance;
-      return forward_static_call_array(array($cls, $name), $args);
-    }
   }
 
 }
