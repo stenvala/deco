@@ -6,7 +6,7 @@ class ListOf {
 
   use \deco\essentials\traits\deco\AnnotationsForClass;
 
-  use \deco\essentials\traits\database\FluentMariaDB;
+use \deco\essentials\traits\database\FluentTableDB;
 
   private $sort = array();
   private $objects = array();
@@ -16,7 +16,7 @@ class ListOf {
     $this->instance = $instance;
   }
 
-  public function add($obj) {
+  public function add($obj) {    
     $id = $obj->get('id');
     if (!array_key_exists($id, $this->objects)) {
       $this->objects[$id] = $obj;
@@ -32,10 +32,10 @@ class ListOf {
 
   public function create($data) {
     $cls = $this->instance;
-    $obj = $cls::create($data);
-    $property = $cls::getClassName();
-    $id = $obj->get($property, 'id');
-    array_push($this->sort, $id);
+    $obj = is_object($data) ? $data : $cls::create($data);    
+    // $property = $cls::getClassName();
+    $id = $obj->get('id');    
+    array_push($this->sort, $id);           
     $this->objects[$id] = $obj;
     return $obj;
   }
@@ -75,11 +75,11 @@ class ListOf {
     if (array_key_exists('limit', $guide)) {
       $query = $query->limit($guide['limit']);
     }
-    if (array_key_exists('groupBy',$guide)){
+    if (array_key_exists('groupBy', $guide)) {
       $query = $query->groupBy($guide['groupBy']);
     }
-    $data = self::db()->getAsArray($query->execute());
-    foreach ($data as $row) {
+    $data = self::db()->getAsArray($query->execute());    
+    foreach ($data as $row) {      
       $id = $row[$table . '_id'];
       if (!array_key_exists($id, $this->objects)) {
         array_push($this->sort, $id);
@@ -111,13 +111,14 @@ class ListOf {
     return $ar;
   }
 
-  static private function initRecursively($parent, $children, $row) {
+  static private function initRecursively($parent, $children, $row) {        
     if (array_key_exists('init', $children)) {
       foreach ($children['init'] as $child) {
         $childSer = $parent::getPropertyAnnotationValue($child, 'contains');
         $table = $childSer::getTable();
-        $objectData = self::getDataFromSelectFor($table, $row);
+        $objectData = self::getDataFromSelectFor($table, $row);        
         $obj = $parent->initFromRow($child, $objectData);
+        //$obj = $parent->$child();
         if (array_key_exists($child, $children)) {
           self::initRecursively($obj, $children[$child], $row);
         }
@@ -128,32 +129,31 @@ class ListOf {
   private function createQueryRecursively($parent, $children, $query) {
     $table = $parent::getTable();
     if (array_key_exists('init', $children)) {
-      foreach ($children['init'] as $child) {        
-        $childSer = $parent::getPropertyAnnotationValue($child,'contains');// preg_replace('#\\\\[A-Za-z]*$#', "\\$child", $parent);        
-        $childTable = $childSer::getTable();                       
-        print $childSer . PHP_EOL . $parent . PHP_EOL;
-        if ($childSer::getTable() != $parent::getTable()) {                                                  
+      foreach ($children['init'] as $child) {
+        $childSer = $parent::getPropertyAnnotationValue($child, 'contains'); // preg_replace('#\\\\[A-Za-z]*$#', "\\$child", $parent);        
+        $childTable = $childSer::getTable();        
+        if ($childSer::getTable() != $parent::getTable()) {
           if (!$childSer::isListOfService() &&
-              !$parent::getPropertyAnnotationValue($child, 'parent', false)) {                        
+              !$parent::getPropertyAnnotationValue($child, 'parent', false)) {
             $foreign = $parent::getReferenceToClass($childSer);
             $query = $query->innerJoin("$childTable ON $table.{$foreign['column']} = $childTable.{$foreign['parentColumn']}");
-          } else {           
+          } else {
             $foreign = $childSer::getReferenceToClass($parent);
             $query = $query->innerJoin("$childTable ON $childTable.{$foreign['column']} = $table.{$foreign['parentColumn']}");
           }
-          if (array_key_exists($child, $children)) {            
+          if (array_key_exists($child, $children)) {
             $query = $this->createQueryRecursively($childSer, $children[$child], $query);
           }
-        }        
+        }
         // get columns
         $columns = $childSer::getDatabaseHardColumnNames();
-        $query = $query->select(self::getSelectInJoin($childTable, $columns));                
+        $query = $query->select(self::getSelectInJoin($childTable, $columns));
       }
     }
     // 
     if (array_key_exists('use', $children)) {
       foreach ($children['use'] as $child) {
-        $childSer = $parent::getPropertyAnnotationValue($child,'contains'); //preg_replace('#\\\\[A-Za-z]*$#', "\\$child", $parent);
+        $childSer = $parent::getPropertyAnnotationValue($child, 'contains'); //preg_replace('#\\\\[A-Za-z]*$#', "\\$child", $parent);
         $childTable = $childSer::getTable();
         if ($childSer::getTable() != $parent::getTable()) {
           if (!$childSer::isListOfService() &&
@@ -169,7 +169,7 @@ class ListOf {
           }
         }
       }
-    }    
+    }
     return $query;
   }
 
@@ -201,16 +201,35 @@ class ListOf {
     }
   }
 
-  public function collection() {
+  public function objects() {
     $objs = array();
+    $args = func_get_args();
+    if (count($args) > 0) {
+      foreach ($this->sort as $id) {
+        if ($this->objects[$id]->master()->is($args[0])) {
+          array_push($objs, $this->objects[$id]);
+        }
+      }
+      return $objs;
+    }
     foreach ($this->sort as $id) {
       array_push($objs, $this->objects[$id]);
     }
     return $objs;
   }
+   
 
   public function get() {
     $data = array();
+    $args = func_get_args();
+    if (count($args) > 0) {
+      foreach ($this->sort as $id) {
+        if ($this->objects[$id]->master()->is($args[0])) {
+          array_push($data, $this->objects[$id]->get());
+        }
+      }
+      return $data;
+    }
     foreach ($this->sort as $id) {
       array_push($data, $this->objects[$id]->get());
     }
@@ -219,6 +238,15 @@ class ListOf {
 
   public function getLazy() {
     $data = array();
+    $args = func_get_args();
+    if (count($args) > 0) {
+      foreach ($this->sort as $id) {
+        if ($this->objects[$id]->master()->is($args[0])) {
+          array_push($data, $this->objects[$id]->getLazy());
+        }
+      }
+      return $data;
+    }
     foreach ($this->sort as $id) {
       array_push($data, $this->objects[$id]->getLazy());
     }
@@ -237,19 +265,11 @@ class ListOf {
     }
   }
 
-  public function getList($where) {
-    if ($where == 'all') {
-      return $this->collection();
-    }
-    $data = array();
-    foreach ($this->sort as $id) {
-      if ($this->objects[$id]->master()->is($where)) {
-        array_push($data, $this->objects[$id]);
-      }
-    }
-    return $data;
+  public function sort($cb){
+    uasort($this->objects, $cb);
+    $this->sort = array_keys($this->objects);
   }
-
+  
   public function __call($name, $args) {
     $data = null;
     foreach ($this->sort as $ind => $id) {

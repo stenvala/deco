@@ -12,9 +12,9 @@ use \deco\essentials\util\annotation as ann;
  */
 abstract class Row {
 
-  use \deco\essentials\traits\database\FluentMariaDB;
+  use \deco\essentials\traits\database\FluentTableDB;
 
-use \deco\essentials\traits\deco\AnnotationsIncludingDatabaseProperties;
+  use \deco\essentials\traits\deco\AnnotationsIncludingDatabaseProperties;
 
   const CREATE = 'CREATE';
   const UPDATE = 'UPDATE';
@@ -30,13 +30,14 @@ use \deco\essentials\traits\deco\AnnotationsIncludingDatabaseProperties;
    */
   protected $id;
 
-  public function __construct($id = null) {
-    if (!is_null($id)) {
-      if (!is_array($id)) {
-        self::DECOinitBy('id', $id, $this);
-      } else {
-        self::DECOinitByArray($id, $this);
-      }
+  public function __construct() {
+    $args = func_get_args();
+    if (count($args) == 1 && is_array($args[0])) {
+      self::DECOinitByArray($args[0], $this);
+    } else if (count($args) == 1) {
+      self::DECOinitBy('id', $args[0], $this);
+    } else if (count($args) == 2) {
+      self::DECOinitBy($args[0], $args[1], $this);
     }
   }
 
@@ -449,12 +450,6 @@ use \deco\essentials\traits\deco\AnnotationsIncludingDatabaseProperties;
     $cls = get_called_class();
     throw new exc\Database(array('msg' => "Object '$cls' does not have a foreign key that refers to '$table'."));
   }
-  
-  /*
-  static public function getMasterClass(){
-    return get_called_class();
-  } 
-   */
 
   public function __call($method, $arguments) {
     if ($method == 'getLazy') {

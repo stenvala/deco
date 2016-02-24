@@ -1,11 +1,30 @@
 <?php
 
+/**
+ * DECO Framework
+ * 
+ * @link: https://github.com/stenvala/deco-essentials
+ * @copyright: Copyright (c) 2016- Antti Stenvall
+ * @license: https://github.com/stenvala/deco-essentials/blob/master/LICENSE (MIT License)
+ */
+
 namespace deco\essentials\database\util;
 
 use \deco\essentials\exception as exc;
 
+/**
+ * Is used to set type of value based on annotation
+ */
 class Type {
 
+  /**
+   * Converts variable to correct type according to its annotation collection
+   * 
+   * @param any &$value reference parameter
+   * @param \deco\essentials\util\annotation\AnnotationCollection $propertyAnnotations
+   * @param \deco\essentials\util\annotation\AnnotationCollection $classAnnotations   
+   * @throws exc\Deco
+   */
   public static function convertTo(&$value, \deco\essentials\util\annotation\AnnotationCollection $propertyAnnotations, \deco\essentials\util\annotation\AnnotationCollection $classAnnotations = null) {
     $type = $propertyAnnotations->getValue('type');
     if (is_null($value) || $value === 'NULL') {
@@ -29,11 +48,15 @@ class Type {
         }
         break;
       case 'enum':
-        $cls = $classAnnotations->reflector->getName();
-        $value = constant($cls . '::' . $value);
+        if (func_num_args() == 3) {
+          $cls = $classAnnotations->reflector->getName();
+          $value = constant($cls . '::' . $value);
+        }
+        break;
+      case 'date':
         break;
       default:
-        throw new exc\General(array('msg' => "Cannot convert variable '$value' to '$type'",
+        throw new exc\Deco(array('msg' => "Cannot convert variable '$value' to '$type'",
         'params' => array('type' => $type, 'value' => $value)));
     }
   }

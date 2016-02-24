@@ -7,15 +7,15 @@ use \deco\essentials\util\annotation as ann;
 
 abstract class Service {
 
-  use \deco\essentials\traits\deco\Annotations;
+  use \deco\essentials\traits\database\FluentTableDB;
 
-use \deco\essentials\traits\database\FluentMariaDB;
+use \deco\essentials\traits\deco\Annotations;
 
   public function __construct() {
     $args = func_get_args();
     if (count($args) == 0) {
       return;
-    }
+    }    
     $annCol = self::getMasterAnnotationCollection();
     $property = $annCol->reflector->name;
     $cls = $annCol->getValue('contains');
@@ -26,7 +26,7 @@ use \deco\essentials\traits\database\FluentMariaDB;
         $this->$property = new $cls($args[0]);
       }
     } else if (count($args) == 2) {
-      $this->$property = new $cls(array($args[1] => $args[0]));
+      $this->$property = new $cls($args[0], $args[1]);
     }
   }
 
@@ -55,8 +55,11 @@ use \deco\essentials\traits\database\FluentMariaDB;
       if (!isset($this->$property)) {
         $this->$property = new $cls();
       }
-      $obj = $this->$property->add($obj);
+      return $this->$property->add($obj);
     } else {
+      if (is_object($data)){
+        return $this->$property = $data;
+      }
       $this->$property = $cls::initFromRow($data);
       $obj = $this->$property;
     }
@@ -91,10 +94,12 @@ use \deco\essentials\traits\database\FluentMariaDB;
   }
 
   /**
-   * @call: $obj->load{Property}(), $obj->load($property, [property, value pairs for database query])
+   * @call: $obj->load{Property}(), $obj->load($property, property value pairs of guide for initialization)
    * @return: instance of inited object (could be also value if query is value)   
    */
-  protected function DECOloadProperty($property, $guide = null) {
+  protected function DECOloadProperty() {
+    $args = func_get_args();
+    $property = $args[0];
     if (count($query = self::getPropertyAnnotationValue($property, 'query', array())) > 0) {
       $q = self::db()->fluent()->
               from($query['table'])->select(null)->select($query['columns']);
@@ -117,18 +122,23 @@ use \deco\essentials\traits\database\FluentMariaDB;
       if ($type == 'array') {
         $this->$property = $data;
       } else {
-        $this->$property = $data[$property];
+        $this->$property = array_pop($data);
         if ($type !== false) {
           settype($this->$property, $type);
         }
       }
       return $this->$property;
     }
+    array_shift($args);
+    if (count($args) == 0 ){
+      $args[0] = array();
+    }
+    $guide = is_array($args[0]) ? $args[0] : \deco\essentials\util\Arguments::pvToArray($args);
     $cls = self::getPropertyAnnotationValue($property, 'contains');
     $annCol = self::getMasterAnnotationCollection();
     $masterCls = $annCol->getValue('contains');
     $masterProperty = $annCol->reflector->name;
-    $isCollection = $cls::isListOfService();    
+    $isCollection = $cls::isListOfService();
     if (!$isCollection &&
         !self::getPropertyAnnotationValue($property, 'parent', false)
     ) {
@@ -159,7 +169,7 @@ use \deco\essentials\traits\database\FluentMariaDB;
   }
 
   public function get() {
-    $args = func_get_args();
+    $args = func_get_args();    
     // recursion
     if (count($args) > 0) {
       // forward to master object
@@ -177,9 +187,9 @@ use \deco\essentials\traits\database\FluentMariaDB;
       if (!is_object($this->$obj)) {
         return $this->$obj;
       }
-      if (count($args) > 1) {
-        array_shift($args);
-        return call_user_func_array(array($this->$obj, 'get'), $args);
+      if (count($args) > 1) {       
+        unset($args[0]);
+        return call_user_func_array(array($this->$obj, 'get'), array_values($args));
       }
       return $this->$obj->get();
     }
@@ -223,8 +233,11 @@ use \deco\essentials\traits\database\FluentMariaDB;
     if (isset($this->$property)) {
       return $this->$property;
     }
-    $this->DECOloadProperty($property);
-    return $this->$property;
+    $cls = self::getPropertyAnnotationValue($property, 'contains');
+    if ($cls::isListOfService()) {
+      return $this->$property = new $cls();
+    }
+    return $this->DECOloadProperty($property);
   }
 
   /**
@@ -233,7 +246,8 @@ use \deco\essentials\traits\database\FluentMariaDB;
    */
   static public function create($data) {
     $obj = new static();
-    return $obj->DECOcreate(self::getClassName(), $data);
+    $obj->DECOcreate(self::getClassName(), $data);
+    return $obj;
   }
 
   /**
@@ -242,8 +256,20 @@ use \deco\essentials\traits\database\FluentMariaDB;
    */
   protected function DECOcreate($property, $data) {
     $cls = self::getPropertyAnnotationValue($property, 'contains');
-    $this->$property = $cls::create($data);
-    return $this;
+    if ($cls::isListOfService()) {
+      if (!isset($this->$property)) {
+        $this->$property = new $cls();
+      }
+      if (!is_object($data)) {
+        $annCol = self::getMasterAnnotationCollection();
+        $masterCls = $annCol->getValue('contains');
+        $masterProperty = $annCol->reflector->name;
+        $foreign = $cls::getReferenceToClass($masterCls);
+        $data[$foreign['column']] = $this->$masterProperty->get($foreign['parentColumn']);
+      }
+      return $this->$property->create($data);
+    }    
+    return $this->$property = is_object($data) ? $data : $cls::create($data);    
   }
 
   public function set($data) {
@@ -259,20 +285,15 @@ use \deco\essentials\traits\database\FluentMariaDB;
   }
 
   /**
-   * @call: $obj->add{Property}($data), $obj->add($property,$data) // this is for adding to list of data
-   * @return: instance of added data
+   * @call: $obj->deleteProperty(), $obj->delete($property) and for master $obj->delete()
+   * note that data inconsistencies may arise   
    */
-  protected function DECOadd($property, $data) {
-    $cls = self::getPropertyAnnotationValue($property, 'contains');
-    if (!isset($this->$property)) {
-      $this->$property = new $cls();
+  protected function DECOdelete($property) {
+    if (is_object($this->$property)) {
+      $this->$property->delete();
     }
-    $annCol = self::getMasterAnnotationCollection();
-    $masterCls = $annCol->getValue('contains');
-    $masterProperty = $annCol->reflector->name;
-    $foreign = $cls::getReferenceToClass($masterCls);
-    $data[$foreign['column']] = $this->$masterProperty->get($foreign['parentColumn']);
-    return $this->$property->create($data);
+    unset($this->$property);
+    return null;
   }
 
   static protected function getMasterAnnotationCollection() {
@@ -285,16 +306,18 @@ use \deco\essentials\traits\database\FluentMariaDB;
     return $annCol->getValue('contains');
   }
 
-  protected function DECOinitCollection($property, $guide = null) {
+  /* does exactly the same thing as loadProperty(guide)
+    protected function DECOinitCollection($property, $guide = null) {
     $cls = self::getPropertyAnnotationValue($property, 'contains');
     if (func_num_args() == 1) {
-      $this->$property = new ListOf($cls);
+    $this->$property = new ListOf($cls);
     } else {
-      $this->$property = new ListOf($cls);
-      call_user_func_array(array($this->$property, 'init'), $guide);
+    $this->$property = new ListOf($cls);
+    call_user_func_array(array($this->$property, 'init'), $guide);
     }
     return $this->$property;
-  }
+    }
+   */
 
   public static function getTable() {
     $cls = self::getMasterClass();
@@ -306,27 +329,27 @@ use \deco\essentials\traits\database\FluentMariaDB;
     return $masterCls::getReferenceToClass($cls);
   }
 
-  public function __call($name, $args) {
+  public function __call($name, $args) {          
     if (preg_match('#^get[A-Z][A-Za-z]*$#', $name)) {
       return call_user_func_array(array($this, 'get'), array_merge(array(preg_replace('#^get#', '', $name)), $args));
-    } if (preg_match('#^load[A-Z][A-Za-z]*$#', $name)) {
+    } else if (preg_match('#^load[A-Z][A-Za-z]*$#', $name)) {
       return call_user_func_array(array($this, 'DECOloadProperty'), array_merge(array(preg_replace('#^load#', '', $name)), $args));
-    } if ($name == 'load') {
+    } else if ($name == 'load') {
       return call_user_func_array(array($this, 'DECOloadProperty'), $args);
-    } if (preg_match('#^set[A-Z][A-Za-z]*$#', $name)) {
+    } else if (preg_match('#^set[A-Z][A-Za-z]*$#', $name)) {
       $property = preg_replace('#^set#', '', $name);
       $cls = self::getPropertyAnnotationValue($property, 'contains');
       if ($cls::isCollectionisListOfService()) {
         return $this->$property->set($args[0], $args[1]);
       }
       return $this->DECOset($property, $args[0]);
-    } if (preg_match('#^initFromRow$#', $name)) {
+    } else if (preg_match('#^initFromRow$#', $name)) {
       return $this->DECOinitFromRow($args[0], $args[1]);
     } else if (preg_match('#^initFromRow[A-Z][A-Za-z]*$#', $name)) {
       return $this->DECOinitFromRow(preg_replace('#^initFromRow#', '', $name), $args[0]);
-    } if (preg_match('#^add[A-Z][A-Za-z]*$#', $name)) {
-      return $this->DECOadd(preg_replace('#^add#', '', $name), $args[0]);
-    } if (preg_match('#^has[A-Z][A-Za-z]*$#', $name)) {
+    } else if (preg_match('#^add|create[A-Z][A-Za-z]*$#', $name)) {      
+      return $this->DECOcreate(preg_replace('#^add|create#', '', $name), $args[0]);
+    } else if (preg_match('#^has[A-Z][A-Za-z]*$#', $name)) {
       $property = preg_replace('#^has#', '', $name);
       // need to add foreign key property to search arguments unless it is id (i.e. not array)
       if (is_array($args[0])) {
@@ -341,12 +364,16 @@ use \deco\essentials\traits\database\FluentMariaDB;
         $this->DECOinitCollection($property);
       }
       return $this->$property->has($args[0]);
-    } if (array_key_exists($name, self::getAnnotationsForProperties())) {
+    } if (preg_match('#^delete[A-Z][A-Za-z]*$#', $name)) {
+      $property = preg_replace('"^delete', '', $name);
+      return $this->DECOdelete($property);
+    } else if ($name == 'delete') {
       if (count($args) == 0) {
-        return $this->DECOgetInstance($name);
-      } else {
-        return $this->$name->getList($args[0]);
+        return $this->DECOdelete(self::getClassName());
       }
+      return $this->DECOdelete($args[0]);
+    } else if (array_key_exists($name, self::getAnnotationsForProperties())) {
+      return $this->DECOgetInstance($name);
     } else {
       return call_user_func_array(array($this->master(), $name), $args);
     }
@@ -356,8 +383,7 @@ use \deco\essentials\traits\database\FluentMariaDB;
     if ($name == 'initFromRow') {
       return self::DECOinitMasterFromRow($args[0]);
     } else { // delegate to master
-      $annCol = self::getMasterAnnotationCollection();
-      $cls = $annCol->getValue('contains');
+      $cls = self::getMasterClass();      
       return forward_static_call_array(array($cls, $name), $args);
     }
   }
