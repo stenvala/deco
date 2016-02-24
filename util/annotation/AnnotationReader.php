@@ -7,7 +7,7 @@ use \deco\essentials\exception as exc;
 class AnnotationReader {
 
   /**
-   * @return: \deco\essentials\util\annotation\AnnotationCollection
+   * @return \deco\essentials\util\annotation\AnnotationCollection
    */
   static public function getAllAnnotations($docComment, $reflector = null) {
     $lines = explode(PHP_EOL, $docComment);
@@ -15,7 +15,7 @@ class AnnotationReader {
     $ann = null;
     foreach ($lines as $line) {
       $line = preg_replace('#//.*$#', '', $line); // remove comment at the end of line
-      if (preg_match('#\s@([a-zA-z]*)([\([private|protected|public]\)])?:(.*)#', $line, $matches)) {
+      if (preg_match('#\*\s@([a-zA-z]*)([\([private|protected|public]\)])?\s(.*)#', $line, $matches)) {
         $annotation = trim($matches[1]);
         $visibility = $matches[2];
         if (strlen($visibility) == 0) {
@@ -39,8 +39,8 @@ class AnnotationReader {
         $value = self::parseAnnotationValue($matches[3]);
         $ann = new Annotation($annotation, $value, $visibility);
         $collection->set($ann);
-      } else if (preg_match('#\\\\:(.*)#', $line, $matches)) { // needs to be array or dictionary
-        $newValue = self::parseAnnotationValue($matches[1]);
+      } else if (preg_match('#\\\\(.*)#', $line, $matches)) { // needs to be array or dictionary
+        $newValue = self::parseAnnotationValue($matches[1]);                
         // picks previous annotation
         if (is_null($ann)) {
           throw new exc\Annotation(array('msg' => 'Cannot continue unexisting annotation.'));

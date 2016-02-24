@@ -8,11 +8,16 @@
  * @license https://github.com/stenvala/deco-essentials/blob/master/LICENSE (MIT License)
  */
 
-namespace deco\essentials\database\util;
+namespace deco\essentials\rest;
 
 /**
- * Creates model of database (i.e. repository classes) based on existing database
+ * Interface for reporting errors that occur in a SlimClass service
  */
-class Model {
+interface ErrorReportingInterface {
+
+  public function setService($obj);
+  
+  public function report(\deco\essentials\exception $e);
+  
   
 }

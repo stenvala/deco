@@ -1,5 +1,13 @@
 <?php
 
+/**
+ * DECO Framework
+ * 
+ * @link https://github.com/stenvala/deco-essentials
+ * @copyright Copyright (c) 2016- Antti Stenvall
+ * @license https://github.com/stenvala/deco-essentials/blob/master/LICENSE (MIT License)
+ */
+
 namespace deco\essentials\prototypes\mono;
 
 use \deco\essentials\database\util as util;
@@ -8,14 +16,22 @@ use \deco\essentials\util as commonUtil;
 use \deco\essentials\util\annotation as ann;
 
 /**
- * @noTable(private): true
+ * Abstract for data model modelling single row in a table and also describing 
+ * the table structure
+ * 
+ * @noTable(private) true
  */
 abstract class Row {
 
+  // Use database
   use \deco\essentials\traits\database\FluentTableDB;
 
+// Use annotations with special features to database properties
   use \deco\essentials\traits\deco\AnnotationsIncludingDatabaseProperties;
 
+  /**
+   * Constants that are used to maintain manual order fields in insert and add
+   */
   const CREATE = 'CREATE';
   const UPDATE = 'UPDATE';
   const DELETE = 'DELETE';
@@ -23,13 +39,24 @@ abstract class Row {
   private static $table = array();
 
   /**
-   * @type: integer
-   * @primaryKey: true
-   * @autoIncrement: true
-   * @set: false
+   * Primary key in database
+   * 
+   * @type integer
+   * @primaryKey true
+   * @autoIncrement true
+   * @set false
    */
   protected $id;
 
+  /**
+   * Object can be constructed only if data already exists. In create static
+   * create must be used.
+   * 
+   * @call new Row()
+   * @call new Row(id)
+   * @call new Row(key,value)
+   * @call new Row(array(key1=>value1,key2=>value2)
+   */
   public function __construct() {
     $args = func_get_args();
     if (count($args) == 1 && is_array($args[0])) {
@@ -42,6 +69,7 @@ abstract class Row {
   }
 
   /**
+   * 
    * @call: $cls::initBy{Property}($value), $cls::initBy($property,$value) // $obj cannot be given, is for constructor help only
    * @return: instance of self
    * @throws: Deco, SingleDataModel

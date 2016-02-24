@@ -1,32 +1,98 @@
 <?php
 
+/**
+ * DECO Framework
+ * 
+ * @link https://github.com/stenvala/deco-essentials
+ * @copyright Copyright (c) 2016- Antti Stenvall
+ * @license https://github.com/stenvala/deco-essentials/blob/master/LICENSE (MIT License)
+ */
+
 namespace deco\essentials\prototypes;
 
 use \deco\essentials\util\annotation as ann;
 use \deco\essentials\exception as exc;
 
+/**
+ * Base class for instantiating services to REST end-points. 
+ * Allows automatic binding of class methods to a slim application without 
+ * explicitely writing which to bind and where
+ * (http://www.slimframework.com/)
+ */
 abstract class SlimClass {
 
   use \deco\essentials\traits\deco\Annotations;
 
-  const CT_PLAIN = 0;
-  const CT_JSON = 1;
-  const CT_HTML = 2;
-
   /**
-   * @type: \Slim\App
+   * Slim application holder
+   * 
+   * @var \Slim\App
    */
   public static $app = null;
+
+  /**
+   * Automatically map methods starting with these keywords
+   * 
+   * @var array
+   */
   public static $autoMap = array('get', 'post', 'delete', 'options', 'put');
+
+  /**
+   * Class to call in case of errors
+   * 
+   * @var \deco\essentials\rest\ErrorReportingInterface
+   */
   public static $error = null;
+
+  /**
+   * Request relative URI
+   * 
+   * @var string
+   */
   public static $requestRelativeUri = null;
+
+  /**
+   * Base of service
+   * 
+   * @var string
+   */
   public $path;
+
+  /**
+   *
+   * @var array
+   */
   public $args = null;
+
+  /**
+   * Http response
+   * 
+   * @var \Psr\Http\Message\ResponseInterface
+   */
   public $response = null;
+
+  /**
+   * Http request
+   *
+   * @var type \Psr\Http\Message\ServerRequestInterface
+   */
   public $request = null;
-  public $body = null;
+
+  // public $body = null;
+
+  /**
+   * Which method was called based on the URI
+   * 
+   * @var string
+   */
   public $calledMethod = null;
 
+  /**
+   * Configure static properties
+   * 
+   * @param array $array
+   * @param $array['error'] is reference to instance that satisfies \deco\essentials\rest\ErrorReportingInterface
+   */
   public static function configure($array) {
     foreach ($array as $key => $value) {
       switch ($key) {
@@ -37,6 +103,11 @@ abstract class SlimClass {
     }
   }
 
+  /**
+   * Construct with path
+   * 
+   * @param string $path   
+   */
   public function __construct($path) {
     if (is_null(self::$app)) {
       self::$app = new \Slim\App();
@@ -46,33 +117,68 @@ abstract class SlimClass {
     }
     if (self::cannotBeTargetByPath($path)) {
       return;
-    }    
+    }
     $this->path = $path;
     $this->mapMethods();
   }
 
+  /**
+   * Run application
+   */
   public static function run() {
     self::$app->run();
   }
 
-  public function setContentType($type) {
+  /**
+   * Set content type to response
+   * 
+   * @param string $type
+   * 
+   * @return static
+   */
+  protected function setContentType($type) {
     $this->response = $this->response->withAddedHeader('Content-Type', $type);
+    return $this;
   }
 
-  public function setStatusCode($code) {
-    $code = $code == 0 ? 400 : $code;
-    $this->response = $this->response->withStatus($code);
+  /**
+   * Set status code to response
+   * 
+   * @param int $code
+   * 
+   * @return static
+   */
+  protected function setStatusCode($code) {
+    $this->response = $this->response->withStatus($code == 0 ? 400 : $code);
+    return $this;
   }
 
-  public function finalize($return) {
+  /**
+   * Finalize response, writes to response given data as json if array is given
+   * 
+   * @param custom $return
+   * @return \Psr\Http\Message\ResponseInterface
+   */
+  protected function finalize($return) {
     if (is_array($return)) {
       $this->setContentType('application/json');
-    }        
-    return $this->response->write(json_encode($return));
+      $return = json_encode($return);
+    }
+    return $this->response->write($return);
   }
 
+  /**
+   * For controlling access to given method
+   * 
+   * @param \deco\essentials\util\annotation\AnnotationCollection $method
+   * 
+   * @return bool
+   * 
+   * @throws exc\Permission if Permission is denied, never returns false
+   */
   protected function permissionControl(ann\AnnotationCollection $method) {
     $cls = get_called_class();
+    // based on method permissions
     $permissions = $method->getValue('permission', array());
     if (!is_array($permissions)) {
       $permissions = array($permissions);
@@ -84,46 +190,61 @@ abstract class SlimClass {
       $clsAuthStack = $authStack;
     }
     if (count($permissions) > 0 &&
-            $authStack !== false &&
-            $this->hasPermission($permissions, $authStack)) {
-      return;
+        $authStack !== false &&
+        $this->hasPermission($permissions, $authStack)) {
+      return true;
     }
+    // based on general class permissions
     $clsPermissions = $cls::getClassAnnotationValue('permission', array());
     if (count($clsPermissions) > 0) {
       if (is_null($clsAuthStack)) {
         $clsAuthStack = $cls::getClassAnnotationValue('auth');
       }
       if ($this->hasPermission($clsPermissions, $clsAuthStack)) {
-        return;
+        return true;
       }
     }
     if (count($clsPermissions) == 0 && count($permissions) == 0) {
-      return;
+      return true;
     }
     // no access
     throw new exc\Permission(array('msg' => "Permission denied."));
   }
 
-  protected function hasPermission($permissions, $stack) {    
-    $prev = $this;    
+  /**
+   * Checks if permission exists by going through a stack of methods and finally calling it with a permission
+   * 
+   * @param array/string $permissions Array or string accepted permissions
+   * @param array of strings $stack Stack of permissions to traverse in the object, could use also path arguments
+   * @return bool if finally permissions exist or not
+   * @throws exc\Deco If requested parameter cannot be find in args
+   */
+  protected function hasPermission($permissions, $stack) {
+    $prev = $this;
     foreach ($stack as $method) {
-      if ($method == end($stack)) {      
+      if ($method == end($stack)) {
         return $prev->$method($permissions);
       } else {
-        // check if there is variable from $args to send
+        // check if there is variable from $args to pass-by to the given method
         if (preg_match('#^([a-zA-Z]*)\(([a-zA-Z])\)$#', $method, $matches)) {
           if (!array_key_exists($matches[2], $this->args)) {
             $cls = get_called_class();
             throw new exc\Deco(array('msg' => "Error in @auth of '$cls'."));
           }
           $prev = $prev->$method($this->args[$matches[2]]);
-        } else {          
+        } else {
           $prev = $prev->$method();
         }
       }
-    }    
+    }
   }
 
+  /**
+   * Create path for URI from method parameter list
+   * 
+   * @param \ReflectionMethod $method
+   * @return string
+   */
   private static function getPathPartDefinedByParameters(\ReflectionMethod $method) {
     $path = '';
     $pathEnd = '';
@@ -135,10 +256,17 @@ abstract class SlimClass {
         $path .= '[/{' . $param->name . '}';
         $pathEnd .= ']';
       }
-    }    
+    }
     return $path . $pathEnd;
   }
 
+  /**
+   * Create path for URI from method name
+   * 
+   * @param \deco\essentials\util\annotation\AnnotationCollection $method
+   * @param string $httpMethod
+   * @return string
+   */
   private static function getPathFromMethod(ann\AnnotationCollection $method, $httpMethod) {
     $customPath = $method->getValue('route', null);
     if (!is_null($customPath)) {
@@ -161,10 +289,13 @@ abstract class SlimClass {
         $name = substr($name, strlen($part));
       }
     }
-    $path .= self::getPathPartDefinedByParameters($reflector);    
+    $path .= self::getPathPartDefinedByParameters($reflector);
     return $path;
   }
 
+  /**
+   * Maps methods to URI, finally, maps only the method that is requested
+   */
   private function mapMethods() {
     $methods = self::getAnnotationsForMethodsHavingVisibility(\ReflectionMethod::IS_PUBLIC);
     self::sortMethods($methods);
@@ -172,15 +303,15 @@ abstract class SlimClass {
     foreach ($methods as $method) {
       $name = $method->name;
       if (!preg_match($regex, $name, $temp) ||
-              $method->reflector->isStatic() ||
-              $method->reflector->getDeclaringClass()->isAbstract()) {
+          $method->reflector->isStatic() ||
+          $method->reflector->getDeclaringClass()->isAbstract()) {
         continue;
       }
       $httpMethod = $temp[1];
       $path = $this->path . self::getPathFromMethod($method, $httpMethod);
       if (self::cannotBeTargetByPath($path) || !self::isCorrectHttpMethod($httpMethod)) {
         continue;
-      }      
+      }
       $self = $this; // Need to create this for closure, otherwise $this refers to Slim object
       $mw = $method->getValue('middleware', null);
       if (is_null($mw) && method_exists($this, 'middleware')) {
@@ -220,21 +351,36 @@ abstract class SlimClass {
           return $fun();
         }
       };
-      
+
       self::$app->$httpMethod($path, $callback);
     }
   }
 
+  /**
+   * Checks if URI can refer to given path 
+   * 
+   * @param string $path
+   * @return bool
+   */
   private static function cannotBeTargetByPath($path) {
-    $path = preg_replace("#\[.*#","",$path); // Remove optional parameters
-    $regex = preg_replace("#{[a-zA-z]*}#","[^/]*",$path);        
+    $path = preg_replace("#\[.*#", "", $path); // Remove optional parameters from the end
+    $regex = preg_replace("#{[a-zA-z]*}#", "[^/]*", $path);
     return !preg_match('#^' . $regex . '#', self::$requestRelativeUri);
   }
 
+  /**
+   * Checks if the current path is going to the correct method
+   * 
+   * @param string $method
+   * @return bool
+   */
   private static function isCorrectHttpMethod($method) {
     return strtoupper($method) === strtoupper($_SERVER['REQUEST_METHOD']);
   }
 
+  /**
+   * Set path for URI
+   */
   private static function setPathForRequest() {
     $script = $_SERVER['SCRIPT_NAME'];
     $uri = $_SERVER['REQUEST_URI'];
@@ -242,6 +388,11 @@ abstract class SlimClass {
     self::$requestRelativeUri = str_replace($base, '', $uri);
   }
 
+  /**
+   * For sorting method base on their name lengths
+   * 
+   * @param array of $methods
+   */
   private static function sortMethods(&$methods) {
     $sortFun = function($value1, $value2) {
       return strlen($value1->name) > strlen($value2->name) ? -1 : 1;

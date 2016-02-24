@@ -3,9 +3,9 @@
 /**
  * DECO Framework
  * 
- * @link: https://github.com/stenvala/deco-essentials
- * @copyright: Copyright (c) 2016- Antti Stenvall
- * @license: https://github.com/stenvala/deco-essentials/blob/master/LICENSE (MIT License)
+ * @link https://github.com/stenvala/deco-essentials
+ * @copyright Copyright (c) 2016- Antti Stenvall
+ * @license https://github.com/stenvala/deco-essentials/blob/master/LICENSE (MIT License)
  */
 
 namespace deco\essentials\database;

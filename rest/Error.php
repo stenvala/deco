@@ -2,7 +2,7 @@
 
 namespace deco\essentials\rest;
 
-class Error {
+class Error implements ErrorReportingInterface {
 
   const DEBUG_NONE = 1;  
   const DEBUG_PRODUCTION = 2;
@@ -20,7 +20,7 @@ class Error {
     $this->service = $service;
   }
   
-  public function report($exception){        
+  public function report(\deco\essentials\exception $exception){        
     $this->exception = $exception;
     return $this->service->finalize($this->getErrorReport());        
   }
