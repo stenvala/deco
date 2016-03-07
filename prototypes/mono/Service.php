@@ -1,5 +1,13 @@
 <?php
 
+/**
+ * DECO Framework
+ * 
+ * @link https://github.com/stenvala/deco-essentials
+ * @copyright Copyright (c) 2016- Antti Stenvall
+ * @license https://github.com/stenvala/deco-essentials/blob/master/LICENSE (MIT License)
+ */
+
 namespace deco\essentials\prototypes\mono;
 
 use \deco\essentials\exception as exc;
@@ -15,7 +23,7 @@ use \deco\essentials\traits\deco\Annotations;
     $args = func_get_args();
     if (count($args) == 0) {
       return;
-    }    
+    }
     $annCol = self::getMasterAnnotationCollection();
     $property = $annCol->reflector->name;
     $cls = $annCol->getValue('contains');
@@ -31,8 +39,8 @@ use \deco\essentials\traits\deco\Annotations;
   }
 
   /**
-   * @call: $cls::initFromRow($value)
-   * @return: instance of self   
+   * @call $cls::initFromRow($value)
+   * @return instance of self   
    */
   public static function DECOinitMasterFromRow($data) {
     $annCol = self::getMasterAnnotationCollection();
@@ -44,9 +52,9 @@ use \deco\essentials\traits\deco\Annotations;
   }
 
   /**
-   * @call: $obj->initFromRow{Property}($value), $obj->initFromRow($property,$value)
-   * @return: instance of inited object
-   * @throws: Deco, SingleDataModel
+   * @call $obj->initFromRow{Property}($value), $obj->initFromRow($property,$value)
+   * @return instance of inited object
+   * @throws Deco, SingleDataModel
    */
   protected function DECOinitFromRow($property, $data) {
     $cls = self::getPropertyAnnotationValue($property, 'contains');
@@ -57,7 +65,7 @@ use \deco\essentials\traits\deco\Annotations;
       }
       return $this->$property->add($obj);
     } else {
-      if (is_object($data)){
+      if (is_object($data)) {
         return $this->$property = $data;
       }
       $this->$property = $cls::initFromRow($data);
@@ -94,8 +102,8 @@ use \deco\essentials\traits\deco\Annotations;
   }
 
   /**
-   * @call: $obj->load{Property}(), $obj->load($property, property value pairs of guide for initialization)
-   * @return: instance of inited object (could be also value if query is value)   
+   * @call $obj->load{Property}(), $obj->load($property, property value pairs of guide for initialization)
+   * @return instance of inited object (could be also value if query is value)   
    */
   protected function DECOloadProperty() {
     $args = func_get_args();
@@ -130,7 +138,7 @@ use \deco\essentials\traits\deco\Annotations;
       return $this->$property;
     }
     array_shift($args);
-    if (count($args) == 0 ){
+    if (count($args) == 0) {
       $args[0] = array();
     }
     $guide = is_array($args[0]) ? $args[0] : \deco\essentials\util\Arguments::pvToArray($args);
@@ -168,8 +176,30 @@ use \deco\essentials\traits\deco\Annotations;
     return $this->$property;
   }
 
+  public function display($indent = 0, $row = false, $first = true) {
+    $annCol = self::getMasterAnnotationCollection();
+    $master = $annCol->reflector->name;
+    if (!isset($this->$master)) {
+      return;
+    }
+    $this->$master->display($indent, $row, $first);
+    $properties = self::getAnnotationsForProperties();
+    $ws = str_pad('', $indent);
+    foreach ($properties as $property => $annCol) {
+      if ($property == $master || !isset($this->$property)) {
+        continue;
+      }
+      if (!is_object($this->$property)) {
+        print "$ws- $property: {$this->$property}\n";
+      } else {
+        print "$ws* $property:\n";
+        $this->$property->display($indent + 2, $row);
+      }
+    }
+  }
+
   public function get() {
-    $args = func_get_args();    
+    $args = func_get_args();
     // recursion
     if (count($args) > 0) {
       // forward to master object
@@ -187,7 +217,7 @@ use \deco\essentials\traits\deco\Annotations;
       if (!is_object($this->$obj)) {
         return $this->$obj;
       }
-      if (count($args) > 1) {       
+      if (count($args) > 1) {
         unset($args[0]);
         return call_user_func_array(array($this->$obj, 'get'), array_values($args));
       }
@@ -226,8 +256,8 @@ use \deco\essentials\traits\deco\Annotations;
   }
 
   /**
-   * @call: $obj->$property()
-   * @return: instance of object (could be also value if query is value)   
+   * @call $obj->$property()
+   * @return instance of object (could be also value if query is value)   
    */
   public function DECOgetInstance($property) {
     if (isset($this->$property)) {
@@ -241,8 +271,8 @@ use \deco\essentials\traits\deco\Annotations;
   }
 
   /**
-   * @call: $cls::create($data)
-   * @return: instance of self   
+   * @call $cls::create($data)
+   * @return instance of self   
    */
   static public function create($data) {
     $obj = new static();
@@ -251,8 +281,8 @@ use \deco\essentials\traits\deco\Annotations;
   }
 
   /**
-   * @call: $obj->create{Property}($data), $obj->create($property,$data) 
-   * @return: instance of self   
+   * @call $obj->create{Property}($data), $obj->create($property,$data) 
+   * @return instance of self   
    */
   protected function DECOcreate($property, $data) {
     $cls = self::getPropertyAnnotationValue($property, 'contains');
@@ -268,8 +298,8 @@ use \deco\essentials\traits\deco\Annotations;
         $data[$foreign['column']] = $this->$masterProperty->get($foreign['parentColumn']);
       }
       return $this->$property->create($data);
-    }    
-    return $this->$property = is_object($data) ? $data : $cls::create($data);    
+    }
+    return $this->$property = is_object($data) ? $data : $cls::create($data);
   }
 
   public function set($data) {
@@ -277,15 +307,15 @@ use \deco\essentials\traits\deco\Annotations;
   }
 
   /**
-   * @call: $obj->set{Property}($data), $obj->set($property,$data) 
-   * @return: instance of set data
+   * @call $obj->set{Property}($data), $obj->set($property,$data) 
+   * @return instance of set data
    */
   protected function DECOset($property, $data) {
     return $this->$property->set($data);
   }
 
   /**
-   * @call: $obj->deleteProperty(), $obj->delete($property) and for master $obj->delete()
+   * @call $obj->deleteProperty(), $obj->delete($property) and for master $obj->delete()
    * note that data inconsistencies may arise   
    */
   protected function DECOdelete($property) {
@@ -329,7 +359,7 @@ use \deco\essentials\traits\deco\Annotations;
     return $masterCls::getReferenceToClass($cls);
   }
 
-  public function __call($name, $args) {          
+  public function __call($name, $args) {
     if (preg_match('#^get[A-Z][A-Za-z]*$#', $name)) {
       return call_user_func_array(array($this, 'get'), array_merge(array(preg_replace('#^get#', '', $name)), $args));
     } else if (preg_match('#^load[A-Z][A-Za-z]*$#', $name)) {
@@ -347,7 +377,7 @@ use \deco\essentials\traits\deco\Annotations;
       return $this->DECOinitFromRow($args[0], $args[1]);
     } else if (preg_match('#^initFromRow[A-Z][A-Za-z]*$#', $name)) {
       return $this->DECOinitFromRow(preg_replace('#^initFromRow#', '', $name), $args[0]);
-    } else if (preg_match('#^add|create[A-Z][A-Za-z]*$#', $name)) {      
+    } else if (preg_match('#^add|create[A-Z][A-Za-z]*$#', $name)) {
       return $this->DECOcreate(preg_replace('#^add|create#', '', $name), $args[0]);
     } else if (preg_match('#^has[A-Z][A-Za-z]*$#', $name)) {
       $property = preg_replace('#^has#', '', $name);
@@ -383,7 +413,7 @@ use \deco\essentials\traits\deco\Annotations;
     if ($name == 'initFromRow') {
       return self::DECOinitMasterFromRow($args[0]);
     } else { // delegate to master
-      $cls = self::getMasterClass();      
+      $cls = self::getMasterClass();
       return forward_static_call_array(array($cls, $name), $args);
     }
   }

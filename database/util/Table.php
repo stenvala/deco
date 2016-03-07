@@ -85,7 +85,7 @@ class Table {
    * @param \deco\essentials\database\util\ForeignKey $foreignKey
    */
   public function addForeignKey(ForeignKey $foreignKey) {
-    $this->constraints[$foreignKey->getColumn()] = $foreignKey;
+    $this->foreignKeys[$foreignKey->getColumn()] = $foreignKey;
   }
 
   /**
@@ -153,8 +153,8 @@ class Table {
    * @return array, elements are strings
    */
   public function getForeignKeyCreationCommands() {
-    $commands = array();
-    foreach ($this->constraints as $con) {
+    $commands = array();    
+    foreach ($this->foreignKeys as $con) {
       $cmd = "ALTER TABLE {$this->tableName} ADD" .
           " FOREIGN KEY {$con->getName()} ({$con->getColumn()})" .
           " REFERENCES {$con->getTable()} ({$con->getForeignColumn()})" .

@@ -65,6 +65,13 @@ abstract class SlimClass {
   public $args = null;
 
   /**
+   * Raw data read with file_get_contents('php://input')   
+   * 
+   * @var string
+   */
+  static protected $rawData;
+  
+  /**
    * Http response
    * 
    * @var \Psr\Http\Message\ResponseInterface
@@ -94,6 +101,7 @@ abstract class SlimClass {
    * @param $array['error'] is reference to instance that satisfies \deco\essentials\rest\ErrorReportingInterface
    */
   public static function configure($array) {
+    //self::$rawData = file_get_contents('php://input');
     foreach ($array as $key => $value) {
       switch ($key) {
         case 'error':
@@ -103,6 +111,16 @@ abstract class SlimClass {
     }
   }
 
+  /**
+   * Set raw data
+   * 
+   * @param string $str
+   */
+  
+  public static function setRawData($str){
+    self::$rawData = $str;
+  }
+  
   /**
    * Construct with path
    * 
@@ -325,7 +343,7 @@ abstract class SlimClass {
           $self->args = $args;
           $self->parsedBody = $this->request->getParsedBody();
           if (!is_null($mw)) {
-            $self->$mw();
+            $self->$mw(); // user identification is done in middleware, therefore permission control cannot exist without middleware
             $self->permissionControl($method);
           }
           if ($method->reflector->getNumberOfParameters() == 0) {

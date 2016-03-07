@@ -181,8 +181,8 @@ class ListOf {
       array_push($data, "$table.$col as {$table}_$col");
     }
     return $data;
-  }
-
+  } 
+  
   /**
    * Converts temporary column names for ones of a given table (i.e. removes 
    * prefixes from column names set by getSelectInJoin)
@@ -341,6 +341,24 @@ class ListOf {
     return $objs;
   }
 
+  /**
+   * Display objects
+   * 
+   * @param int $indent
+   */
+  
+  public function display($indent=0,$row=false){
+    $ws = str_pad('',$indent);
+    $ind = 0;
+    foreach ($this->objects as $obj){
+      if ($row){
+        print "{$ws}[Element $ind]\n";
+      }
+      $obj->display($indent+2, $row, $ind === 0);
+      $ind++;
+    }
+  }
+  
   /**
    * Apply get to objects, can be filtered like objects
    * 

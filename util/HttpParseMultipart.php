@@ -6,14 +6,15 @@ namespace deco\essentials\util;
 
 class HttpParseMultipart {
 
-  static public function parse(array &$variables, array &$files) {
+  static public function parse(array &$variables, array &$files, $raw_data = null) {
     // Fetch content and determine boundary
-    $raw_data = file_get_contents('php://input');
+    if (func_num_args() < 3) {
+      $raw_data = file_get_contents('php://input');
+    }
     $boundary = substr($raw_data, 0, strpos($raw_data, "\r\n"));
 
     // Fetch each part
     $parts = array_slice(explode($boundary, $raw_data), 1);
-    $data = array();
 
     $isAssoc = true;
 
@@ -39,7 +40,7 @@ class HttpParseMultipart {
       if (isset($headers['content-disposition'])) {
         $filename = null;
         preg_match(
-                '/^(.+); *name="([^"]+)"(; *filename="([^"]+)")?/', $headers['content-disposition'], $matches
+            '/^(.+); *name="([^"]+)"(; *filename="([^"]+)")?/', $headers['content-disposition'], $matches
         );
         list(, $type, $name) = $matches;
         isset($matches[4]) and $filename = $matches[4];

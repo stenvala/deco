@@ -1,7 +1,7 @@
 {
-  "name": "stenvala/deco",  
-  "description": "Deco is a DECorative Object oriented backend framwork for building RESTful applications.",
-  "version": "0.9.0.0",
+  "name": "deco",  
+  "description": "Deco is a DEsCorative Object oriented backend framework for building RESTful applications on top of a database.",
+  "version": "1.0.0.0",
   "homepage": "http://www.github.com/stenvala/deco",
   "keywords": "php, framework, rest, database",
   "license": "MIT",

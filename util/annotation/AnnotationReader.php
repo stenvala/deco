@@ -37,8 +37,12 @@ class AnnotationReader {
           $visibility = $vis[1];
         }
         $value = self::parseAnnotationValue($matches[3]);
-        $ann = new Annotation($annotation, $value, $visibility);
-        $collection->set($ann);
+        if ($collection->hasAnnotation($annotation)){
+          $collection->get($annotation)->merge($value);
+        } else {
+          $ann = new Annotation($annotation, $value, $visibility);
+          $collection->set($ann);
+        }
       } else if (preg_match('#\\\\(.*)#', $line, $matches)) { // needs to be array or dictionary
         $newValue = self::parseAnnotationValue($matches[1]);                
         // picks previous annotation

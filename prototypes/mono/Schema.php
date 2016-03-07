@@ -16,12 +16,11 @@ use \deco\essentials\util as commonUtil;
 use \deco\essentials\util\annotation as ann;
 
 /**
- * Abstract for data model modelling single row in a table and also describing 
- * the table structure
+ * Abstract for the schema of the table
  * 
  * @noTable(private) true
  */
-abstract class Row {
+abstract class Schema {
 
   // Use database
   use \deco\essentials\traits\database\FluentTableDB;
@@ -69,10 +68,16 @@ abstract class Row {
   }
 
   /**
+   * Initialize object via static method
    * 
-   * @call: $cls::initBy{Property}($value), $cls::initBy($property,$value) // $obj cannot be given, is for constructor help only
-   * @return: instance of self
-   * @throws: Deco, SingleDataModel
+   * @call $cls::initBy(property, value)
+   * @call $cls::initByProperty(value)
+   * 
+   * @param string $property
+   * @param mixed $value
+   * @param object $obj Object where to init. Cannot be given via public call, is for constructor help
+   * @return this
+   * @throws exc\Deco If object cannot be initialized with given property
    */
   static protected function DECOinitBy($property, $value, $obj = null) {
     if (!self::isObjectInitableBy($property)) {
@@ -87,9 +92,14 @@ abstract class Row {
   }
 
   /**
-   * @call: $cls::initBy($dictionary) // $value is array, $obj cannot be given, is for constructor help only
-   * @return: instance of self
-   * @throws: Deco, SingleDataModel
+   * Initialize object based on property,value pairs
+   * 
+   * @call $cls::initByArray(dict)
+   * 
+   * @param array $where Dictionary property => value for finding the object from the database
+   * @param object $obj Object where to init. Cannot be given via public call, is for constructor help
+   * @return this
+   * @throws exc\SingleDataModel
    */
   static protected function DECOinitByArray($where, $obj = null) {
     if ($obj == null) {
@@ -110,7 +120,11 @@ abstract class Row {
   }
 
   /**
-   * @call: $cls::initFromRow($dictionary)
+   * Initialize object from data that is already fetched from the database. 
+   * Consistency check is not performed
+   * 
+   * @call $cls::initFromRow($dictionary)
+   * @return this
    */
   static protected function DECOinitFromRow($data) {
     $obj = new static();
@@ -125,6 +139,42 @@ abstract class Row {
       util\Type::convertTo($value, $anns[$key], $annCol);
       $this->$key = $value;
     }
+  }
+
+  /**
+   * Display data in terminal
+   * 
+   * @param int $indent
+   */
+  public function display($indent = 0, $row = false, $first = true) {
+    $anns = self::getForDatabaseProperties();
+    $ws = str_pad('', $indent);
+    $pad = 16;
+    if ($row) {
+      foreach ($anns as $property => $ann) {
+        print "$ws" . str_pad($property, $pad) . ": {$this->$property}\n";
+      }
+    } else {
+      if ($first) {
+        print $ws;
+        foreach ($anns as $property => $ann) {
+          if (strlen($property) >= $pad) {
+            $property = substr($property, 0, $pad-1);
+          }
+          print str_pad($property, $pad);
+        }
+        print "\n";
+      }      
+      print $ws;
+      foreach ($anns as $property => $ann) {
+        $value = $this->$property;
+        if (strlen($value) >= $pad) {
+          $value = substr($value, 0, $pad-1);
+        }
+        print str_pad($value, $pad);
+      }
+    }
+    print "\n";
   }
 
   /**
