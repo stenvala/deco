@@ -25,7 +25,7 @@ class Column {
   private $name;
 
   /**
-   * Type of the column, if enum includes also list of options
+   * @type of the column, if enum includes also list of options
    * 
    * @var string
    */

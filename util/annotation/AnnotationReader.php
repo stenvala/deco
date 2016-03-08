@@ -13,9 +13,9 @@ class AnnotationReader {
     $lines = explode(PHP_EOL, $docComment);
     $collection = new AnnotationCollection();
     $ann = null;
-    foreach ($lines as $line) {
+    foreach ($lines as $line) {      
       $line = preg_replace('#//.*$#', '', $line); // remove comment at the end of line
-      if (preg_match('#\*\s@([a-zA-z]*)([\([private|protected|public]\)])?\s(.*)#', $line, $matches)) {
+      if (preg_match('#\*\s@([a-zA-z]*)([\([private|protected|public]\)])?\s(.*)#', $line, $matches)) {        
         $annotation = trim($matches[1]);
         $visibility = $matches[2];
         if (strlen($visibility) == 0) {
@@ -44,7 +44,7 @@ class AnnotationReader {
           $collection->set($ann);
         }
       } else if (preg_match('#\\\\(.*)#', $line, $matches)) { // needs to be array or dictionary
-        $newValue = self::parseAnnotationValue($matches[1]);                
+        $newValue = self::parseAnnotationValue($matches[1]);            
         // picks previous annotation
         if (is_null($ann)) {
           throw new exc\Annotation(array('msg' => 'Cannot continue unexisting annotation.'));

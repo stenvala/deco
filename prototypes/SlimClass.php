@@ -160,24 +160,26 @@ abstract class SlimClass {
   }
 
   /**
-   * Set status code to response
+   * Set status code to response.
+   * Must be public so that error handling can also call.
    * 
    * @param int $code
    * 
    * @return static
    */
-  protected function setStatusCode($code) {
+  public function setStatusCode($code) {
     $this->response = $this->response->withStatus($code == 0 ? 400 : $code);
     return $this;
   }
 
   /**
-   * Finalize response, writes to response given data as json if array is given
+   * Finalize response, writes to response given data as json if array is given.
+   * Must be public so that error handling can also call.
    * 
    * @param custom $return
    * @return \Psr\Http\Message\ResponseInterface
    */
-  protected function finalize($return) {
+  public function finalize($return) {
     if (is_array($return)) {
       $this->setContentType('application/json');
       $return = json_encode($return);

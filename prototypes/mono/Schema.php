@@ -22,6 +22,16 @@ use \deco\essentials\util\annotation as ann;
  */
 abstract class Schema {
 
+  /**
+   * Primary key in database
+   * 
+   * @type integer
+   * @primaryKey true
+   * @autoIncrement true
+   * @set false
+   */
+  protected $id;
+  
   // Use database
   use \deco\essentials\traits\database\FluentTableDB;
 
@@ -36,17 +46,7 @@ abstract class Schema {
   const DELETE = 'DELETE';
 
   private static $table = array();
-
-  /**
-   * Primary key in database
-   * 
-   * @type integer
-   * @primaryKey true
-   * @autoIncrement true
-   * @set false
-   */
-  protected $id;
-
+  
   /**
    * Object can be constructed only if data already exists. In create static
    * create must be used.
@@ -178,7 +178,7 @@ abstract class Schema {
   }
 
   /**
-   * @call: $obj->get{Property}(), $obj->get($property) // $force cannot be applied externally
+   @call$obj->get{Property}(), $obj->get($property) // $force cannot be applied externally
    */
   protected function DECOget($property, $force = false) {
     $anns = self::getForDatabaseProperties();
@@ -203,7 +203,7 @@ abstract class Schema {
   }
 
   /**
-   * @call: $obj->getLazy()  // returns also lazy properties, $force cannot be applied externally
+   @call$obj->getLazy()  // returns also lazy properties, $force cannot be applied externally
    */
   protected function DECOgetLazy($force = false) {
     $anns = self::getForDatabaseProperties();
@@ -237,7 +237,7 @@ abstract class Schema {
   }
 
   /**
-   * @call: $obj->get() // returns all but non-lazy properties, $force cannot be applied externally
+   @call$obj->get() // returns all but non-lazy properties, $force cannot be applied externally
    */
   protected function DECOgetAll($force = false) {
     $anns = self::getForDatabaseProperties();
@@ -260,7 +260,7 @@ abstract class Schema {
   }
 
   /**
-   * @call: $obj = $cls::create($dictionary)
+   @call$obj = $cls::create($dictionary)
    */
   static protected function DECOcreate($data) {
     $data = self::checkCreateData($data);
@@ -306,14 +306,14 @@ abstract class Schema {
   }
 
   /**
-   * @call: $obj->set{Property}($value), $obj->set($property, $value) // $force cannot be applied externally
+   @call$obj->set{Property}($value), $obj->set($property, $value) // $force cannot be applied externally
    */
   protected function DECOset($property, $value, $force = false) {
     $this->DECOsetAll(array($property => $value), $force);
   }
 
   /**
-   * @call: $obj->set($dictionary) // $force cannot be applied externally
+   @call$obj->set($dictionary) // $force cannot be applied externally
    */
   protected function DECOsetAll($data, $force = false) {
     $anns = self::getForDatabaseProperties();
@@ -490,7 +490,7 @@ abstract class Schema {
   }
 
   /**
-   * @call: $cls::strip($dictionary) // strip all non-database properties
+   @call$cls::strip($dictionary) // strip all non-database properties
    */
   static protected function DECOstrip($data) {
     $anns = self::getForDatabaseProperties();

@@ -29,7 +29,7 @@ trait AnnotationsIncludingDatabaseProperties {
     return true;
   }
 
-  static public function isObjectInitableBy($property) {
+  static public function isObjectInitableBy($property) {    
     $annCol = self::getPropertyAnnotations($property);
     if ($annCol->reflector->isProtected() &&
         !$annCol->getValue('nodb', false) &&

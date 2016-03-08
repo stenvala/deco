@@ -20,7 +20,7 @@ class Error implements ErrorReportingInterface {
     $this->service = $service;
   }
   
-  public function report(\deco\essentials\exception $exception){        
+  public function report(\deco\essentials\exception\Base $exception){        
     $this->exception = $exception;
     return $this->service->finalize($this->getErrorReport());        
   }

@@ -79,6 +79,7 @@ use \deco\essentials\traits\deco\Annotations;
     if ($recursionDepth < 0) {
       return;
     }
+
     $anns = self::getAnnotationsForProperties();
     foreach ($anns as $property => $annCol) {
       $cls = $annCol->getValue('contains', false);
@@ -110,7 +111,7 @@ use \deco\essentials\traits\deco\Annotations;
     $property = $args[0];
     if (count($query = self::getPropertyAnnotationValue($property, 'query', array())) > 0) {
       $q = self::db()->fluent()->
-              from($query['table'])->select(null)->select($query['columns']);
+                      from($query['table'])->select(null)->select($query['columns']);
       if (array_key_exists('where', $query)) {
         foreach ($query['where'] as $key => $value) {
           if (preg_match('#^{([A-Za-z]*)}$#', $value, $matches)) {
@@ -148,7 +149,7 @@ use \deco\essentials\traits\deco\Annotations;
     $masterProperty = $annCol->reflector->name;
     $isCollection = $cls::isListOfService();
     if (!$isCollection &&
-        !self::getPropertyAnnotationValue($property, 'parent', false)
+            !self::getPropertyAnnotationValue($property, 'parent', false)
     ) {
       $foreign = $masterCls::getReferenceToClass($cls);
       $masterValue = $this->$masterProperty->get($foreign['column']);
@@ -157,7 +158,7 @@ use \deco\essentials\traits\deco\Annotations;
       $foreign = $cls::getReferenceToClass($masterCls);
       $masterValue = $this->$masterProperty->get($foreign['parentColumn']);
       if (self::getPropertyAnnotationValue($property, 'parent', false)) {
-        $this->$property = new $cls($masterValue, $foreign['column']);
+        $this->$property = new $cls($foreign['column'], $masterValue);
       } else {
         $this->$property = new $cls();
         $ar = array('where', array($foreign['column'] => $masterValue));

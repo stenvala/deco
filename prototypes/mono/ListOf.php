@@ -39,7 +39,7 @@ class ListOf {
   private $objects = array();
 
   /**
-   * Type of instance
+   * @type of instance
    * 
    * @var string
    */
@@ -107,7 +107,7 @@ class ListOf {
    * @return array New list of disallowed objects (to prevent cyclic recursions)
    */
   public function loadAll($recursionDepth = 0, $disallow = array()) {
-    $newDisallow = $disallow;
+    $newDisallow = is_array($disallow) ? $disallow : array($disallow);    
     foreach ($this->objects as $obj) {
       $newDisallow = array_merge($newDisallow, $obj->loadAll($recursionDepth, $disallow));
     }
@@ -152,7 +152,7 @@ class ListOf {
     if (array_key_exists('groupBy', $guide)) {
       $query = $query->groupBy($guide['groupBy']);
     }
-    $data = self::db()->getAsArray($query->execute());
+    $data = self::db()->getAsArray($query->execute());    
     foreach ($data as $row) {
       $id = $row[$table . '_id'];
       if (!array_key_exists($id, $this->objects)) {

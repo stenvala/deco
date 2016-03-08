@@ -56,7 +56,7 @@ trait Annotations {
     return array_keys(self::getAnnotationsForProperties());
   }
 
-  public static function getPropertyAnnotations($property) {
+  public static function getPropertyAnnotations($property) {    
     return self::getAnnotationsForProperties()[$property];
   }
 

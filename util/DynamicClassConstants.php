@@ -31,7 +31,7 @@ class DynamicClassConstants {
     $anns = $cls::getAnnotationsForProperties();
     foreach ($anns as $annCol) {
       if ('enum' == ($type = $annCol->getValue('type'))) {
-        $values = $annCol->getValue('values');
+        $values = $annCol->getValue('values');        
         foreach ($values as $value) {          
           \runkit_constant_add($cls . "::" . $value, $value);
         }

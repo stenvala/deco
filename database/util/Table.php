@@ -110,6 +110,15 @@ class Table {
   }
 
   /**
+   * Get names of the columns of the table
+   * 
+   * @return array of strings
+   */  
+  public function getColumns(){
+    return array_keys($this->columns);
+  }
+  
+  /**
    * Get command for all the columns in the table
    * 
    * @return array
@@ -187,7 +196,7 @@ class Table {
    * @param string $column
    * @return bool
    */
-  public function hasColumn($column) {
+  public function hasColumn($column) {    
     return array_key_exists($column, $this->columns);
   }
 

@@ -17,7 +17,7 @@ interface ErrorReportingInterface {
 
   public function setService($obj);
   
-  public function report(\deco\essentials\exception $e);
+  public function report(\deco\essentials\exception\Base $e);
   
   
 }
