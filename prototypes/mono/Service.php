@@ -75,11 +75,10 @@ use \deco\essentials\traits\deco\Annotations;
   }
 
   // load all data recursively 
-  public function loadAll($recursionDepth = 0, $disallow = array()) {
+  public function loadAll($recursionDepth = 0, $disallow = array()) {    
     if ($recursionDepth < 0) {
-      return;
+      return $disallow;
     }
-
     $anns = self::getAnnotationsForProperties();
     foreach ($anns as $property => $annCol) {
       $cls = $annCol->getValue('contains', false);

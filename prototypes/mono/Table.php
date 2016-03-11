@@ -16,11 +16,11 @@ use \deco\essentials\util as commonUtil;
 use \deco\essentials\util\annotation as ann;
 
 /**
- * Abstract for the schema of the table
+ * Abstract for the table
  * 
  * @noTable(private) true
  */
-abstract class Schema {
+abstract class Table {
 
   /**
    * Primary key in database

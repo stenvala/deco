@@ -102,16 +102,19 @@ class ListOf {
    * Load all data in objects of list recursively
    * 
    * @param integer $recursionDepth How deep to allow the recursion to go
-   * @param array $disallowed Disallowed objects (by their table name)
+   * @param array $disallowed Disallowed objects (by their table name) or false if recursion can go as far as it wants
    * 
    * @return array New list of disallowed objects (to prevent cyclic recursions)
    */
-  public function loadAll($recursionDepth = 0, $disallow = array()) {
-    $newDisallow = is_array($disallow) ? $disallow : array($disallow);    
-    foreach ($this->objects as $obj) {
-      $newDisallow = array_merge($newDisallow, $obj->loadAll($recursionDepth, $disallow));
-    }
-    return $newDisallow;
+  public function loadAll($recursionDepth = 0, $disallow = array()) {    
+    $temp = $disallow;
+    foreach ($this->objects as $obj) {            
+      $newDis = $obj->loadAll($recursionDepth, $temp);
+      if (is_array($disallow)){
+        $disallow = array_unique(array_merge($disallow,$newDis));
+      }      
+    }    
+    return $disallow;
   }
 
   /**
