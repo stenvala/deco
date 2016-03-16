@@ -173,7 +173,7 @@ class Column {
         $type = 'text';
       }
     } else if ($type == 'enum') {
-      $values = $annCol->getValue('values');
+      $values = $annCol->getValue('values');      
       $type = " enum('" . implode("','", $values) . "')";
     }
     // Otherwise just return type

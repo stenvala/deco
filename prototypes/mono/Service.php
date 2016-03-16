@@ -154,7 +154,7 @@ use \deco\essentials\traits\deco\Annotations;
       $masterValue = $this->$masterProperty->get($foreign['column']);
       $this->$property = new $cls($masterValue);
     } else {
-      $foreign = $cls::getReferenceToClass($masterCls);
+      $foreign = $cls::getReferenceToClass($masterCls);      
       $masterValue = $this->$masterProperty->get($foreign['parentColumn']);
       if (self::getPropertyAnnotationValue($property, 'parent', false)) {
         $this->$property = new $cls($foreign['column'], $masterValue);

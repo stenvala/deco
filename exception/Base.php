@@ -10,7 +10,7 @@ abstract class Base extends \Exception {
 
   public function __construct($dict = array()) {    
     if (!array_key_exists('msg', $dict)) {
-      $dict['msg'] = get_called_class() . '-exception';
+      $dict['msg'] = ''; //get_called_class() . '-exception';
     }
     if (!array_key_exists('code', $dict)) {
       $dict['code'] = 400;

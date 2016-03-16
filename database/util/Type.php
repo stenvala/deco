@@ -32,6 +32,7 @@ class Type {
       return;
     }
     switch ($type) {
+      case 'int':
       case 'integer':
       case 'string':
         settype($value, $type);
@@ -49,8 +50,9 @@ class Type {
         break;
       case 'enum':
         if (func_num_args() == 3) {
-          $cls = $classAnnotations->reflector->getName();
-          $value = constant($cls . '::' . $value);
+          // Not using dynamic constants
+          //$cls = $classAnnotations->reflector->getName();
+          //$value = constant($cls . '::' . $value);
         }
         break;
       case 'date':

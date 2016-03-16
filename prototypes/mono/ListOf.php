@@ -62,7 +62,8 @@ class ListOf {
    * @return inserted object
    */
   public function add($obj) {
-    $id = $obj->get('id');
+    error_log('NOW ADDING');
+    $id = $obj->get('id');      
     if (!array_key_exists($id, $this->objects)) {
       $this->objects[$id] = $obj;
       array_push($this->sort, $id);

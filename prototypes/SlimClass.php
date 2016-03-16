@@ -365,6 +365,7 @@ abstract class SlimClass {
             return $fun();
           } catch (\Exception $e) {
             $self::$error->setService($self);
+            $parts = explode(PHP_EOL, $e->getTraceAsString());           
             return $self::$error->report($e);
           }
         } else {
