@@ -47,14 +47,15 @@ class Repository {
     foreach ($this->parents as $parent) {
       $rf = new \ReflectionClass($parent);
       $parentName = $rf->getShortName();
+      $var = $parentName == $name ? 'Parent' : $parentName;
       $str .= "  /**\n   * @contains $namespace\\{$parentName}\n   */\n";
-      $str .= "  protected \$$parentName;\n\n";
+      $str .= "  protected \$$var;\n\n";
     }
     // write children
     foreach ($this->children as $child) {
       $rf = new \ReflectionClass($child);
       $childName = $rf->getShortName();
-      $var = $child::getClassAnnotationValue('plural', "{$childName}s");
+      $var = $childName == $name ? 'Children' : $child::getClassAnnotationValue('plural', "{$childName}s");
       $str .= "  /**\n   * @contains \\$namespace\\{$childName}List\n";
       $str .= "   * @singular {$childName}\n   */\n";
       $str .= "  protected \$$var;\n\n";
@@ -76,7 +77,7 @@ class Repository {
     $name = "{$basename}List";
     $traits = $this->getTraits($namespace, $name);
     $str = $this->getHeader($namespace);
-    $str .= "/**\n * @contains \\{$this->ref->getNamespaceName()}\\$basename\n */\n";
+    $str .= "/**\n * @contains \\$namespace\\$basename\n */\n";
     $str .= "class $name extends \\deco\\essentials\\prototypes\\mono\\ListOfType {\n\n";
     $str .= "  // Add traits here\n\n";
     foreach ($traits as $trait) {

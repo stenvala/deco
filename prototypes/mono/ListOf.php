@@ -107,10 +107,10 @@ class ListOf {
    * 
    * @return array New list of disallowed objects (to prevent cyclic recursions)
    */
-  public function loadAll($recursionDepth = 0, $disallow = array()) {    
+  public function loadAll($recursionDepth = 0, $disallow = array(), $allow = array()) {    
     $temp = $disallow;
     foreach ($this->objects as $obj) {            
-      $newDis = $obj->loadAll($recursionDepth, $temp);
+      $newDis = $obj->loadAll($recursionDepth, $temp, $allow);
       if (is_array($disallow)){
         $disallow = array_unique(array_merge($disallow,$newDis));
       }      

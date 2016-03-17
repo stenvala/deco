@@ -75,7 +75,7 @@ use \deco\essentials\traits\deco\Annotations;
   }
 
   // load all data recursively 
-  public function loadAll($recursionDepth = 0, $disallow = array()) {    
+  public function loadAll($recursionDepth = 0, $disallow = array(), $allow = array()) {    
     if ($recursionDepth < 0) {
       return $disallow;
     }
@@ -87,14 +87,14 @@ use \deco\essentials\traits\deco\Annotations;
         if (is_array($disallow) && in_array($table, $disallow)) {
           continue;
         }
-        if (is_array($disallow)) {
+        if (is_array($disallow) && !in_array($table, $allow)) {          
           array_push($disallow, $table); // prevents cycles
         }
       }
-      if (!isset($this->$property)) {
+      if (!isset($this->$property)) {        
         $this->DECOloadProperty($property);
-        if (is_object($this->$property)) {
-          $this->$property->loadAll($recursionDepth - 1, $disallow);
+        if (is_object($this->$property)) {          
+          $this->$property->loadAll($recursionDepth - 1, $disallow, $allow);
         }
       }
     }
@@ -151,7 +151,7 @@ use \deco\essentials\traits\deco\Annotations;
             !self::getPropertyAnnotationValue($property, 'parent', false)
     ) {
       $foreign = $masterCls::getReferenceToClass($cls);
-      $masterValue = $this->$masterProperty->get($foreign['column']);
+      $masterValue = $this->$masterProperty->get($foreign['column']);      
       $this->$property = new $cls($masterValue);
     } else {
       $foreign = $cls::getReferenceToClass($masterCls);      
@@ -378,9 +378,20 @@ use \deco\essentials\traits\deco\Annotations;
     } else if (preg_match('#^initFromRow[A-Z][A-Za-z]*$#', $name)) {
       return $this->DECOinitFromRow(preg_replace('#^initFromRow#', '', $name), $args[0]);
     } else if (preg_match('#^add|create[A-Z][A-Za-z]*$#', $name)) {
-      return $this->DECOcreate(preg_replace('#^add|create#', '', $name), $args[0]);
+      $name = preg_replace('#^add|create#', '', $name);
+      if (!in_array($name,self::getPropertyNames())){
+        // should actually throw exception if length is no 1
+        $annCol = array_pop(self::getAnnotationsForPropertiesHavingAnnotation('singular', $name));        
+        $name = $annCol->reflector->name;
+      }
+      return $this->DECOcreate($name, $args[0]);
     } else if (preg_match('#^has[A-Z][A-Za-z]*$#', $name)) {
       $property = preg_replace('#^has#', '', $name);
+      if (!in_array($name,self::getPropertyNames())){
+        // should actually throw exception if length is no 1
+        $annCol = array_pop(self::getAnnotationsForPropertiesHavingAnnotation('singular', $property));        
+        $property = $annCol->reflector->name;
+      }
       // need to add foreign key property to search arguments unless it is id (i.e. not array)
       if (is_array($args[0])) {
         $childCls = self::getPropertyAnnotationValue($property, 'contains');
