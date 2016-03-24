@@ -1,14 +1,14 @@
 <?php
 
 /**
- * DECO Framework
+ * DECO Library
  * 
  * @link https://github.com/stenvala/deco-essentials
  * @copyright Copyright (c) 2016- Antti Stenvall
  * @license https://github.com/stenvala/deco-essentials/blob/master/LICENSE (MIT License)
  */
 
-namespace deco\essentials\prototypes;
+namespace deco\essentials\prototypes\restmap;
 
 use \deco\essentials\util\annotation as ann;
 use \deco\essentials\exception as exc;
@@ -19,7 +19,7 @@ use \deco\essentials\exception as exc;
  * explicitely writing which to bind and where
  * (http://www.slimframework.com/)
  */
-abstract class SlimClass {
+abstract class Slim {
 
   use \deco\essentials\traits\deco\Annotations;
 

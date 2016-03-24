@@ -1,7 +1,7 @@
 <?php
 
 /**
- * DECO Framework
+ * DECO Library
  * 
  * @link https://github.com/stenvala/deco-essentials
  * @copyright Copyright (c) 2016- Antti Stenvall
@@ -41,8 +41,8 @@ class Type {
         $value = filter_var($value, FILTER_VALIDATE_BOOLEAN);
         break;
       case 'timestamp':
-        if (is_numeric($value)) {
-          settype($value, $type);
+        if (is_numeric($value)) {          
+          settype($value, 'integer');
         } else {
           $dt = new \DateTime($value);
           $value = $dt->getTimestamp();

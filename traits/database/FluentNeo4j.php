@@ -11,25 +11,25 @@
 namespace deco\essentials\traits\database;
 
 /**
- * Trait to include class method db which has access to database via FluentTableDB
+ * Trait to include class method db which has access to database via FluentNeo4j
  */
-trait FluentTableDB {
+trait FluentNeo4j {
 
   /**
    * Instance of database connection
    * 
-   * @var \deco\essentials\database\FluentTableDB
+   * @var \deco\essentials\database\FluentNeo4j
    */
   private static $db = null;
 
   /**
    * Get access to database via this
    * 
-   * @return \deco\essentials\database\FluentTableDB
+   * @return \deco\essentials\database\FluentNeo4j
    */
   protected static function db() {
     if (is_null(self::$db)) {
-      self::$db = new \deco\essentials\database\FluentTableDB();
+      self::$db = new \deco\essentials\database\FluentNeo4jDB();
     }
     return self::$db;
   }

@@ -1,14 +1,14 @@
 <?php
 
 /**
- * DECO Framework
+ * DECO Library
  * 
  * @link https://github.com/stenvala/deco-essentials
  * @copyright Copyright (c) 2016- Antti Stenvall
  * @license https://github.com/stenvala/deco-essentials/blob/master/LICENSE (MIT License)
  */
 
-namespace deco\essentials\prototypes\mono;
+namespace deco\essentials\prototypes\graph;
 
 use \deco\essentials\database\util as util;
 use \deco\essentials\exception as exc;
@@ -21,15 +21,28 @@ use \deco\essentials\util\annotation as ann;
  */
 abstract class Node {
 
-  /**   
-   * @type integer   
+  /**
+   * @type string
+   * @unique true
+   * @index true
    */
   protected $id;
-  
-  // Use database
-  use \deco\essentials\traits\database\Neo4j;
 
-// Use annotations with special features to database properties
+  /**
+   * @type integer    
+   */
+  protected $nodeId;
+
+  /**
+   * @type timestamp
+   * @get false
+   */
+  protected $created;
+
+  // Use database
+  use \deco\essentials\traits\database\FluentNeo4j;
+
+  // Use annotations with special features to database properties
   use \deco\essentials\traits\deco\AnnotationsIncludingDatabaseProperties;
 
   /**
@@ -40,7 +53,7 @@ abstract class Node {
   const DELETE = 'DELETE';
 
   private static $table = array();
-  
+
   /**
    * Object can be constructed only if data already exists. In create static
    * create must be used.
@@ -96,13 +109,24 @@ abstract class Node {
    * @throws exc\SingleDataModel
    */
   static protected function DECOinitByArray($where, $obj = null) {
+    $nodes = self::db()->fluent()->from(self::getLabels())->where($where)->execute();
+    if (count($nodes) != 1) {
+      $cls = get_called_class();
+      throw new exc\Deco(
+      array('msg' => "Instance of '$cls' was not found based on query.",
+      'params' => array('where' => $where)));
+    }
+    return self::DECOinitFromNode($nodes[0], $obj);
+  }
+
+  /**
+   *  @call $cls::initFromNode(node)   
+   */
+  static public function DECOinitFromNode($node, $obj = null) {
     if ($obj == null) {
       $obj = new static();
     }
-    $properties = self::getDatabaseHardColumnNames();
-    $query = self::db()->fluent()->
-            from(self::getTable())->select(null)->select($properties)->where($where)->execute();
-    $data = self::db()->get($query);
+    $data = self::getDataFromNode($node);
     if (!is_array($data)) {
       $cls = get_called_class();
       throw new exc\SingleDataModel(
@@ -130,6 +154,9 @@ abstract class Node {
     $anns = self::getForDatabaseProperties();
     $annCol = self::getAnnotationsForClass();
     foreach ($data as $key => $value) {
+      if (!array_key_exists($key, $anns)) {
+        continue;
+      }
       util\Type::convertTo($value, $anns[$key], $annCol);
       $this->$key = $value;
     }
@@ -153,17 +180,17 @@ abstract class Node {
         print $ws;
         foreach ($anns as $property => $ann) {
           if (strlen($property) >= $pad) {
-            $property = substr($property, 0, $pad-1);
+            $property = substr($property, 0, $pad - 1);
           }
           print str_pad($property, $pad);
         }
         print "\n";
-      }      
+      }
       print $ws;
       foreach ($anns as $property => $ann) {
         $value = $this->$property;
         if (strlen($value) >= $pad) {
-          $value = substr($value, 0, $pad-1);
+          $value = substr($value, 0, $pad - 1);
         }
         print str_pad($value, $pad);
       }
@@ -172,74 +199,47 @@ abstract class Node {
   }
 
   /**
-   @call$obj->get{Property}(), $obj->get($property) // $force cannot be applied externally
+    @call$obj->get{Property}(), $obj->get($property) // $force cannot be applied externally
    */
   protected function DECOget($property, $force = false) {
     $anns = self::getForDatabaseProperties();
     if (!$force) {
       if (!array_key_exists($property, $anns) ||
           !$anns[$property]->getValue('get', true)) {
-        $cls = get_called_class();
-        throw new exc\SingleDataModel(
-        array('msg' => "Property '$property' is not gettable in '$cls'.",
-        'params' => array('property' => $property, 'class' => $cls)));
+        return null;
       }
     }
     if (!array_key_exists($property, $anns)) {
+      $cls = get_called_class();
       throw new exc\SingleDataModel(
       array('msg' => "Property '$property' is not a database property and not gettable in '$cls'.",
       'params' => array('property' => $property, 'class' => $cls)));
     }
-    if (!isset($this->$property) && $anns[$property]->getValue('lazy', false)) {
-      $this->initLazy($property);
+    if (!isset($this->$property)) {
+      $value = self::getPropertyAnnotationValue($property, 'default', null);
+    } else {      
+      $value = $this->$property;
     }
-    return $this->$property;
+    return $value;
   }
 
   /**
-   @call$obj->getLazy()  // returns also lazy properties, $force cannot be applied externally
-   */
-  protected function DECOgetLazy($force = false) {
-    $anns = self::getForDatabaseProperties();
-    $data = array();
-    $lazyProperties = self::getAnnotationsForPropertiesHavingAnnotation('lazy', true);
-    foreach ($lazyProperties as $property => $annCol) {
-      if (isset($this->$property)) {
-        unset($lazyProperties[$property]);
-      }
-    }
-    $this->initLazy(array_keys($lazyProperties));
-    foreach ($anns as $property => $annCol) {
-      if ($force || $annCol->getValue('get', true)) {
-        $data[$property] = $this->$property;
-      }
-    }
-    return $data;
-  }
-
-  protected function initLazy($properties) {
-    if (!is_array($properties)) {
-      $properties = array($properties);
-    }
-    if (count($properties) == 0) {
-      return;
-    }
-    $query = self::db()->fluent()->
-            from(self::getTable())->select(null)->select($properties)->where('id', $this->getId())->execute();
-    $data = self::db()->get($query);
-    $this->setValuesToObject($data);
-  }
-
-  /**
-   @call$obj->get() // returns all but non-lazy properties, $force cannot be applied externally
+    @call$obj->get() // returns all but non-lazy properties, $force cannot be applied externally
    */
   protected function DECOgetAll($force = false) {
     $anns = self::getForDatabaseProperties();
-    $data = array();
+    $data = array();    
     foreach ($anns as $property => $annCol) {
-      if (!$annCol->getValue('lazy', false) &&
-          ($force || $annCol->getValue('get', true))) {
-        $data[$property] = $this->$property;
+      if ((!$force && !$annCol->getValue('get', true)) || $property == 'nodeId') {
+        continue;
+      }
+      $value = $this->DECOget($property, $force);
+      if ($annCol->getValue('point',false)){
+        preg_match('#([0-9\.]*)\s([0-9\.]*)#',$value,$matches);
+        $data['latitude'] = $matches[2];
+        $data['longitude'] = $matches[1];
+      } else {
+        $data[$property] = $value;
       }
     }
     return $data;
@@ -254,18 +254,24 @@ abstract class Node {
   }
 
   /**
-   @call$obj = $cls::create($dictionary)
+    @call$obj = $cls::create($dictionary)
    */
   static protected function DECOcreate($data) {
     $data = self::checkCreateData($data);
-    self::db()->transactionStart();
-    $data = self::checkOrderColumnConsistencyOnCreate($data);
-    self::maintainOrderColumnConsistency(self::CREATE, $data);
-    self::db()->fluent()->
-        insertInto(self::getTable())->values($data)->execute();
-    $id = self::db()->getLastInsertId();
-    self::db()->transactionCommit();
-    return new static($id);
+    //self::db()->transactionStart();
+    //$data = self::checkOrderColumnConsistencyOnCreate($data);
+    //self::maintainOrderColumnConsistency(self::CREATE, $data);
+    //self::db()->fluent()->insertInto(self::getTable())->values($data)->execute();
+    $labels = self::getLabels();
+    $node = self::db()->fluent()->insertNode($data)->labels($labels)->execute()[0];
+    $newdata = self::getDataFromNode($node);
+    return self::initFromRow($newdata);
+  }
+
+  static public function getDataFromNode($node) {
+    $data = $node->values()[0]->values();
+    $data['nodeId'] = $node->values()[0]->identity();
+    return $data;
   }
 
   static protected function checkCreateData($data) {
@@ -275,7 +281,7 @@ abstract class Node {
     foreach ($anns as $key => $annCol) {
       if (array_key_exists($key, $data)) {
         continue;
-      } else if ($annCol->hasAnnotation(array('default', 'autoIncrement', 'autoArrange', 'order'))) {
+      } else if ($key == 'id' || $annCol->hasAnnotation(array('default', 'autoIncrement', 'autoArrange', 'order'))) {
         continue;
       }
       $cls = get_called_class();
@@ -300,14 +306,14 @@ abstract class Node {
   }
 
   /**
-   @call$obj->set{Property}($value), $obj->set($property, $value) // $force cannot be applied externally
+    @call$obj->set{Property}($value), $obj->set($property, $value) // $force cannot be applied externally
    */
   protected function DECOset($property, $value, $force = false) {
     $this->DECOsetAll(array($property => $value), $force);
   }
 
   /**
-   @call$obj->set($dictionary) // $force cannot be applied externally
+    @call$obj->set($dictionary) // $force cannot be applied externally
    */
   protected function DECOsetAll($data, $force = false) {
     $anns = self::getForDatabaseProperties();
@@ -484,7 +490,7 @@ abstract class Node {
   }
 
   /**
-   @call$cls::strip($dictionary) // strip all non-database properties
+    @call$cls::strip($dictionary) // strip all non-database properties
    */
   static protected function DECOstrip($data) {
     $anns = self::getForDatabaseProperties();
@@ -523,10 +529,17 @@ abstract class Node {
     throw new exc\Database(array('msg' => "Object '$cls' does not have a foreign key that refers to '$table'."));
   }
 
+  static public function getLabels() {
+    $clsName = self::getClassName();
+    $labels = self::getClassAnnotationValue('label', array());
+    if (count($labels) == 0) {
+      return array($clsName);
+    }
+    return $labels;
+  }
+
   public function __call($method, $arguments) {
-    if ($method == 'getLazy') {
-      return $this->DECOgetLazy();
-    } else if (preg_match('#^get[A-Z]#', $method)) {
+    if (preg_match('#^get[A-Z]#', $method)) {
       $property = lcfirst(preg_replace('#^get#', '', $method));
       return $this->DECOget($property);
     } else if (preg_match('#^get$#', $method)) {

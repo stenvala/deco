@@ -1,7 +1,7 @@
 <?php
 
 /**
- * DECO Framework
+ * DECO Library
  * 
  * @link https://github.com/stenvala/deco-essentials
  * @copyright Copyright (c) 2016- Antti Stenvall

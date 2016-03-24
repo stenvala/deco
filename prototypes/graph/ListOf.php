@@ -1,14 +1,14 @@
 <?php
 
 /**
- * DECO Framework
+ * DECO Library
  * 
  * @link https://github.com/stenvala/deco-essentials
  * @copyright Copyright (c) 2016- Antti Stenvall
  * @license https://github.com/stenvala/deco-essentials/blob/master/LICENSE (MIT License)
  */
 
-namespace deco\essentials\prototypes\mono;
+namespace deco\essentials\prototypes\graph;
 
 /**
  * List of services
@@ -62,8 +62,25 @@ class ListOf {
    * @return inserted object
    */
   public function add($obj) {
-    error_log('NOW ADDING');
-    $id = $obj->get('id');      
+    $id = $obj->get('id');
+    if (!array_key_exists($id, $this->objects)) {
+      $this->objects[$id] = $obj;
+      array_push($this->sort, $id);
+    }
+    return $this->objects[$id];
+  }
+
+  /**
+   * Add existing node to the end of list. If this exists it is not added.
+   * 
+   * @param $node
+   * 
+   * @return inserted object
+   */
+  public function addNode($node) {
+    $cls = $this->instance;
+    $obj = $cls::initFromNode($node);
+    $id = $obj->get('id');
     if (!array_key_exists($id, $this->objects)) {
       $this->objects[$id] = $obj;
       array_push($this->sort, $id);
@@ -107,14 +124,14 @@ class ListOf {
    * 
    * @return array New list of disallowed objects (to prevent cyclic recursions)
    */
-  public function loadAll($recursionDepth = 0, $disallow = array(), $allow = array()) {    
+  public function loadAll($recursionDepth = 0, $disallow = array(), $allow = array()) {
     $temp = $disallow;
-    foreach ($this->objects as $obj) {            
+    foreach ($this->objects as $obj) {
       $newDis = $obj->loadAll($recursionDepth, $temp, $allow);
-      if (is_array($disallow)){
-        $disallow = array_unique(array_merge($disallow,$newDis));
-      }      
-    }    
+      if (is_array($disallow)) {
+        $disallow = array_unique(array_merge($disallow, $newDis));
+      }
+    }
     return $disallow;
   }
 
@@ -156,7 +173,7 @@ class ListOf {
     if (array_key_exists('groupBy', $guide)) {
       $query = $query->groupBy($guide['groupBy']);
     }
-    $data = self::db()->getAsArray($query->execute());    
+    $data = self::db()->getAsArray($query->execute());
     foreach ($data as $row) {
       $id = $row[$table . '_id'];
       if (!array_key_exists($id, $this->objects)) {
@@ -185,8 +202,8 @@ class ListOf {
       array_push($data, "$table.$col as {$table}_$col");
     }
     return $data;
-  } 
-  
+  }
+
   /**
    * Converts temporary column names for ones of a given table (i.e. removes 
    * prefixes from column names set by getSelectInJoin)
@@ -350,19 +367,18 @@ class ListOf {
    * 
    * @param int $indent
    */
-  
-  public function display($indent=0,$row=false){
-    $ws = str_pad('',$indent);
+  public function display($indent = 0, $row = false) {
+    $ws = str_pad('', $indent);
     $ind = 0;
-    foreach ($this->objects as $obj){
-      if ($row){
+    foreach ($this->objects as $obj) {
+      if ($row) {
         print "{$ws}[Element $ind]\n";
       }
-      $obj->display($indent+2, $row, $ind === 0);
+      $obj->display($indent + 2, $row, $ind === 0);
       $ind++;
     }
   }
-  
+
   /**
    * Apply get to objects, can be filtered like objects
    * 
@@ -449,11 +465,11 @@ class ListOf {
    * 
    * @return this
    */
-  public function delete($id){
+  public function delete($id) {
     $this->objects[$id]->delete();
     unset($this->object[$id]);
-    foreach ($this->sort as $key => $value){
-      if ($value == $id){
+    foreach ($this->sort as $key => $value) {
+      if ($value == $id) {
         unset($this->sort[$key]);
         break;
       }
@@ -461,7 +477,7 @@ class ListOf {
     $this->sort = array_values($this->sort);
     return $this;
   }
-  
+
   /**
    * Perform custom sort to objects in the list
    * 
@@ -482,23 +498,10 @@ class ListOf {
    * @return array or new list of objects
    */
   public function __call($name, $args) {
-    $data = null;
-    foreach ($this->sort as $ind => $id) {
+    $data = array();
+    foreach ($this->sort as $id) {
       $obj = call_user_func_array(array($this->objects[$id], $name), $args);
-      if ($ind == 0 && is_object($obj)) {
-        $instance = $this->instance;
-        $cls = $instance::getPropertyAnnotationValue($name, 'contains', false);
-        if ($data != false) {
-          $data = new ListOf($cls);
-        }
-      } else if ($ind == 0) {
-        $data = array();
-      }
-      if (is_object($obj)) {
-        $data->add($obj);
-      } else {
-        array_push($data, $obj);
-      }
+      array_push($data, $obj);
     }
     return $data;
   }

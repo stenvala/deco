@@ -1,21 +1,21 @@
 <?php
 
 /**
- * DECO Framework
+ * DECO Library
  * 
  * @link https://github.com/stenvala/deco-essentials
  * @copyright Copyright (c) 2016- Antti Stenvall
  * @license https://github.com/stenvala/deco-essentials/blob/master/LICENSE (MIT License)
  */
 
-namespace deco\essentials\prototypes\mono;
+namespace deco\essentials\prototypes\graph;
 
 use \deco\essentials\exception as exc;
 use \deco\essentials\util\annotation as ann;
 
 abstract class Service {
 
-  use \deco\essentials\traits\database\FluentTableDB;
+  use \deco\essentials\traits\database\FluentNeo4j;
 
 use \deco\essentials\traits\deco\Annotations;
 
@@ -39,133 +39,127 @@ use \deco\essentials\traits\deco\Annotations;
   }
 
   /**
-   * @call $cls::initFromRow($value)
-   * @return instance of self   
+   * Init object based on two other objects via traverse
    */
-  public static function DECOinitMasterFromRow($data) {
+  public static function between($property1, $obj1, $property2, $obj2, $where = array()) {
+    $annCol1 = self::getPropertyAnnotations($property1);
+    $direction1 = $annCol1->getValue('direction') == 'from' ? 'to' : 'from';
+    $label1 = $annCol1->getValue('relation');
+    $annCol2 = self::getPropertyAnnotations($property2);
+    $direction2 = $annCol2->getValue('direction');
+    $label2 = $annCol2->getValue('relation');
+    $master = self::getMasterClass();
+    $masterLabels = $master::getLabels();
+    $traverse = self::db()->fluent()->traverse()
+        ->start('n', $obj1->get('id'))
+        ->start('m', $obj2->get('id'))
+        ->match()
+        ->node('n')
+        ->$direction1('r1', $label1)
+        ->node('s', $masterLabels)
+        ->$direction2('r2', $label2)
+        ->node('m')
+        ->ret('s');
+    if (count($where)) {
+      $traverse->where($where);
+    }
+    $nodes = $traverse->execute();
     $annCol = self::getMasterAnnotationCollection();
-    $cls = $annCol->getValue('contains');
     $property = $annCol->reflector->name;
+    $cls = $annCol->getValue('contains');
+    if (count($nodes) != 1) {
+      throw new exc\Deco(
+      array('msg' => "Instance of '$cls' was not found based on query.",
+      'params' => array('where' => $where)));
+    }
     $obj = new static();
-    $obj->$property = $cls::initFromRow($data);
+    $obj->$property = $cls::initFromNode($nodes[0]);
     return $obj;
   }
 
   /**
-   * @call $obj->initFromRow{Property}($value), $obj->initFromRow($property,$value)
+   * @call $cls::initFromNode($node)
+   * @return instance of self   
+   */
+  public static function DECOinitMasterFromNode($node) {
+    $annCol = self::getMasterAnnotationCollection();
+    $cls = $annCol->getValue('contains');
+    $property = $annCol->reflector->name;
+    $obj = new static();
+    $obj->$property = $cls::initFromNode($node);
+    return $obj;
+  }
+
+  /**
+   * @call $obj->initFromNode{Property}($node), $obj->initFromNode($property,$node)
    * @return instance of inited object
    * @throws Deco, SingleDataModel
    */
-  protected function DECOinitFromRow($property, $data) {
+  protected function DECOinitFromNode($property, $node) {
     $cls = self::getPropertyAnnotationValue($property, 'contains');
     if ($cls::isListOfService()) {
-      $obj = $cls::initFromRow($data);
+      $obj = $cls::initFromNode($node);
       if (!isset($this->$property)) {
         $this->$property = new $cls();
       }
       return $this->$property->add($obj);
     } else {
-      if (is_object($data)) {
-        return $this->$property = $data;
-      }
-      $this->$property = $cls::initFromRow($data);
+      $this->$property = $cls::initFromNode($node);
       $obj = $this->$property;
     }
     return $obj;
   }
 
-  // load all data recursively 
-  public function loadAll($recursionDepth = 0, $disallow = array(), $allow = array()) {    
-    if ($recursionDepth < 0) {
-      return $disallow;
-    }
-    $anns = self::getAnnotationsForProperties();
-    foreach ($anns as $property => $annCol) {
-      $cls = $annCol->getValue('contains', false);
-      if ($cls !== false) {
-        $table = $cls::getTable();
-        if (is_array($disallow) && in_array($table, $disallow)) {
-          continue;
-        }
-        if (is_array($disallow) && !in_array($table, $allow)) {          
-          array_push($disallow, $table); // prevents cycles
-        }
-      }
-      if (!isset($this->$property)) {        
-        $this->DECOloadProperty($property);
-        if (is_object($this->$property)) {          
-          $this->$property->loadAll($recursionDepth - 1, $disallow, $allow);
-        }
-      }
-    }
-    return $disallow;
-  }
-
   /**
-   * @call $obj->load{Property}(), $obj->load($property, property value pairs of guide for initialization)
+   * @call $obj->load{Property}(), $obj->load($property, property value pairs of guide for initialization TBD)
    * @return instance of inited object (could be also value if query is value)   
    */
   protected function DECOloadProperty() {
     $args = func_get_args();
     $property = $args[0];
-    if (count($query = self::getPropertyAnnotationValue($property, 'query', array())) > 0) {
-      $q = self::db()->fluent()->
-                      from($query['table'])->select(null)->select($query['columns']);
-      if (array_key_exists('where', $query)) {
-        foreach ($query['where'] as $key => $value) {
-          if (preg_match('#^{([A-Za-z]*)}$#', $value, $matches)) {
-            $query['where'][$key] = $this->master()->get($matches[1]);
-          }
-        }
-        $q = $q->where($query['where']);
-      }
-      if (array_key_exists('orderBy', $query)) {
-        $q = $q->orderBy($query['orderBy']);
-      }
-      if (array_key_exists('limit', $query)) {
-        $q = $q->limit($query['limit']);
-      }
-      $data = self::db()->get($q->execute());
-      $type = self::getPropertyAnnotationValue($property, 'type', false);
-      if ($type == 'array') {
-        $this->$property = $data;
-      } else {
-        $this->$property = array_pop($data);
-        if ($type !== false) {
-          settype($this->$property, $type);
-        }
-      }
-      return $this->$property;
-    }
-    array_shift($args);
-    if (count($args) == 0) {
-      $args[0] = array();
-    }
-    $guide = is_array($args[0]) ? $args[0] : \deco\essentials\util\Arguments::pvToArray($args);
     $cls = self::getPropertyAnnotationValue($property, 'contains');
-    $annCol = self::getMasterAnnotationCollection();
-    $masterCls = $annCol->getValue('contains');
-    $masterProperty = $annCol->reflector->name;
-    $isCollection = $cls::isListOfService();
-    if (!$isCollection &&
-            !self::getPropertyAnnotationValue($property, 'parent', false)
-    ) {
-      $foreign = $masterCls::getReferenceToClass($cls);
-      $masterValue = $this->$masterProperty->get($foreign['column']);      
-      $this->$property = new $cls($masterValue);
-    } else {
-      $foreign = $cls::getReferenceToClass($masterCls);      
-      $masterValue = $this->$masterProperty->get($foreign['parentColumn']);
-      if (self::getPropertyAnnotationValue($property, 'parent', false)) {
-        $this->$property = new $cls($foreign['column'], $masterValue);
-      } else {
-        $this->$property = new $cls();
-        $ar = array('where', array($foreign['column'] => $masterValue));
-        if (!is_null($guide)) {
-          $ar = array_merge($ar, $guide);
-        }
-        call_user_func_array(array($this->$property, 'init'), $ar);
+    $annCol = self::getPropertyAnnotations($property);
+    $relation = $annCol->getValue('relation');
+    $label = $relation['label'];
+    switch ($relation['direction']) {
+      case 'OUTGOING':
+        $direction = 'from';
+        break;
+      case 'INCOMING':
+        $direction = 'to';
+        break;
+      default:
+        $direction = 'undirected';
+    }
+    $traverse = self::db()->fluent()->traverse()
+        ->start('n', $this->master()->get('nodeId'))
+        ->with('n')
+        ->match()
+        ->node('n')
+        ->$direction('r', $label)
+        ->node('m')
+        ->ret('m,r');
+    /*
+      if (count($where)) {
+      $traverse->where($where);
       }
+     */
+    $nodes = $traverse->execute();
+    if ($cls::isListOfService()) {
+      if (!isset($this->$property)) {
+        $this->$property = new $cls(); // when loaded, new is set
+      }
+      foreach ($nodes as $node) {        
+        $obj = $this->$property->addNode($node);
+        if (array_key_exists('saveRelations', $relation)) {
+          $relVar = $relation['saveRelations'];
+          $relClass = self::getPropertyAnnotationValue($relVar, 'type');
+          $relation = $node->values()[1];
+          $this->$relVar[$obj->getId()] = $relClass::initFromRelation($relation);
+        }
+      }
+    } else {
+      $this->$property = $cls::initFromNode($nodes[0]);
     }
     return $this->$property;
   }
@@ -202,7 +196,7 @@ use \deco\essentials\traits\deco\Annotations;
     $args = func_get_args();
     // recursion
     if (count($args) > 0) {
-      // forward to master object
+      // forward to master object            
       if (count($args) == 1 && !array_key_exists($args[0], self::getAnnotationsForProperties())) {
         return $this->master()->get(lcfirst($args[0]));
       }
@@ -223,16 +217,24 @@ use \deco\essentials\traits\deco\Annotations;
       }
       return $this->$obj->get();
     }
-    // go all through
-    $data = array();
+    // first get all from this ndoe    
+    $data = $this->master()->get();
     $properties = self::getAnnotationsForProperties();
+    $masterProperty = self::getClassName();
     foreach ($properties as $property => $annCol) {
+      if ($property == $masterProperty || !$annCol->getValue('get', true)) {
+        continue;
+      }
       if (isset($this->$property)) {
         $key = self::getPropertyAnnotationValue($property, 'revealAs', $property);
         if (is_object($this->$property)) {
-          $data[$key] = $this->$property->get();
+          if (!is_null($fun = $annCol->getValue('getCall'))){
+            $data[$key] = $this->$fun();
+          } else {
+            $data[$key] = $this->$property->get();
+          }
         } else {
-          $data[$key] = $this->$property;
+          $data[$property] = $this->$property;
         }
       }
     }
@@ -290,14 +292,19 @@ use \deco\essentials\traits\deco\Annotations;
       if (!isset($this->$property)) {
         $this->$property = new $cls();
       }
-      if (!is_object($data)) {
-        $annCol = self::getMasterAnnotationCollection();
-        $masterCls = $annCol->getValue('contains');
-        $masterProperty = $annCol->reflector->name;
-        $foreign = $cls::getReferenceToClass($masterCls);
-        $data[$foreign['column']] = $this->$masterProperty->get($foreign['parentColumn']);
+      $node = $this->$property->create($data);
+      // if (!is_object($data)) {
+      // need to create also relation        
+      $relation = self::getPropertyAnnotationValue($property, 'relation');
+      $rel = self::db()->fluent();
+      if (self::getPropertyAnnotationValue($property, 'direction') == 'to') {
+        $rel->insertRelation($node->getId(), $this->master()->getId());
+      } else {
+        $rel->insertRelation($this->master()->getId(), $node->getId());
       }
-      return $this->$property->create($data);
+      $rel->labels($relation)->execute();
+      //}
+      return $node;
     }
     return $this->$property = is_object($data) ? $data : $cls::create($data);
   }
@@ -361,9 +368,9 @@ use \deco\essentials\traits\deco\Annotations;
 
   public function __call($name, $args) {
     if (preg_match('#^get[A-Z][A-Za-z]*$#', $name)) {
-      return call_user_func_array(array($this, 'get'), array_merge(array(preg_replace('#^get#', '', $name)), $args));
+      return call_user_func_array(array($this, 'get'), array_merge(array(lcfirst(preg_replace('#^get#', '', $name))), $args));
     } else if (preg_match('#^load[A-Z][A-Za-z]*$#', $name)) {
-      return call_user_func_array(array($this, 'DECOloadProperty'), array_merge(array(preg_replace('#^load#', '', $name)), $args));
+      return call_user_func_array(array($this, 'DECOloadProperty'), array_merge(array(lcfirst(preg_replace('#^load#', '', $name))), $args));
     } else if ($name == 'load') {
       return call_user_func_array(array($this, 'DECOloadProperty'), $args);
     } else if (preg_match('#^set[A-Z][A-Za-z]*$#', $name)) {
@@ -373,23 +380,23 @@ use \deco\essentials\traits\deco\Annotations;
         return $this->$property->set($args[0], $args[1]);
       }
       return $this->DECOset($property, $args[0]);
-    } else if (preg_match('#^initFromRow$#', $name)) {
-      return $this->DECOinitFromRow($args[0], $args[1]);
-    } else if (preg_match('#^initFromRow[A-Z][A-Za-z]*$#', $name)) {
-      return $this->DECOinitFromRow(preg_replace('#^initFromRow#', '', $name), $args[0]);
+    } else if (preg_match('#^initFromNode$#', $name)) {
+      return $this->DECOinitFromNode($args[0], $args[1]);
+    } else if (preg_match('#^initFromNode[A-Z][A-Za-z]*$#', $name)) {
+      return $this->DECOinitFromNode(preg_replace('#^initFromNode#', '', $name), $args[0]);
     } else if (preg_match('#^add|create[A-Z][A-Za-z]*$#', $name)) {
       $name = preg_replace('#^add|create#', '', $name);
-      if (!in_array($name,self::getPropertyNames())){
-        // should actually throw exception if length is no 1
-        $annCol = array_pop(self::getAnnotationsForPropertiesHavingAnnotation('singular', $name));        
+      if (!in_array($name, self::getPropertyNames())) {
+        // should actually throw exception if length is no 1        
+        $annCol = array_values(self::getAnnotationsForPropertiesHavingAnnotation('singular', $name))[0];
         $name = $annCol->reflector->name;
       }
       return $this->DECOcreate($name, $args[0]);
     } else if (preg_match('#^has[A-Z][A-Za-z]*$#', $name)) {
       $property = preg_replace('#^has#', '', $name);
-      if (!in_array($name,self::getPropertyNames())){
+      if (!in_array($name, self::getPropertyNames())) {
         // should actually throw exception if length is no 1
-        $annCol = array_pop(self::getAnnotationsForPropertiesHavingAnnotation('singular', $property));        
+        $annCol = array_pop(self::getAnnotationsForPropertiesHavingAnnotation('singular', $property));
         $property = $annCol->reflector->name;
       }
       // need to add foreign key property to search arguments unless it is id (i.e. not array)
@@ -421,8 +428,8 @@ use \deco\essentials\traits\deco\Annotations;
   }
 
   static public function __callStatic($name, $args) {
-    if ($name == 'initFromRow') {
-      return self::DECOinitMasterFromRow($args[0]);
+    if ($name == 'initFromNode') {
+      return self::DECOinitMasterFromNode($args[0]);
     } else { // delegate to master
       $cls = self::getMasterClass();
       return forward_static_call_array(array($cls, $name), $args);

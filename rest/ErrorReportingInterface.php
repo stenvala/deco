@@ -1,7 +1,7 @@
 <?php
 
 /**
- * DECO Framework
+ * DECO Library
  * 
  * @link https://github.com/stenvala/deco-essentials
  * @copyright Copyright (c) 2016- Antti Stenvall
@@ -11,7 +11,7 @@
 namespace deco\essentials\rest;
 
 /**
- * Interface for reporting errors that occur in a SlimClass service
+ * Interface for reporting errors that occur in a Slim service
  */
 interface ErrorReportingInterface {
 

@@ -33,7 +33,8 @@ trait AnnotationsForClass {
   }
 
   public static function isListOfService() {
-    return self::isSubClassOf('\\deco\\essentials\\prototypes\\mono\\ListOf');
+    return self::isSubClassOf('\\deco\\essentials\\prototypes\\table\\ListOf') || 
+        self::isSubClassOf('\\deco\\essentials\\prototypes\\graph\\ListOf');
   }
 
   public static function isSubClassOf($class) {

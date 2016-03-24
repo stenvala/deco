@@ -1,14 +1,14 @@
 <?php
 
 /**
- * DECO Framework
+ * DECO Library
  * 
  * @link https://github.com/stenvala/deco-essentials
  * @copyright Copyright (c) 2016- Antti Stenvall
  * @license https://github.com/stenvala/deco-essentials/blob/master/LICENSE (MIT License)
  */
 
-namespace deco\essentials\prototypes\mono;
+namespace deco\essentials\prototypes\graph;
 
 /**
  * List of services of the same type (i.e. monoidal product of same objects)
