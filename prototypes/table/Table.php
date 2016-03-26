@@ -292,7 +292,7 @@ abstract class Table {
     return $data;
   }
 
-  public function is($data) {
+  public function is($data) {    
     foreach ($data as $key => $value) {
       if (is_array($value)) {
         if (!in_array($this->$key, $value)) {

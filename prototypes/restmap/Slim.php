@@ -70,7 +70,7 @@ abstract class Slim {
    * @var string
    */
   static protected $rawData;
-  
+
   /**
    * Http response
    * 
@@ -116,11 +116,10 @@ abstract class Slim {
    * 
    * @param string $str
    */
-  
-  public static function setRawData($str){
+  public static function setRawData($str) {
     self::$rawData = $str;
   }
-  
+
   /**
    * Construct with path
    * 
@@ -243,7 +242,16 @@ abstract class Slim {
     $prev = $this;
     foreach ($stack as $method) {
       if ($method == end($stack)) {
-        return $prev->$method($permissions);
+        foreach ($permissions as $perm) {
+          try {
+          if ($prev->$method($perm)) {
+            return true;
+            }
+          } catch (\Exception $e){
+            // do nothing
+          }
+        }
+        return false;
       } else {
         // check if there is variable from $args to pass-by to the given method
         if (preg_match('#^([a-zA-Z]*)\(([a-zA-Z])\)$#', $method, $matches)) {
@@ -365,7 +373,7 @@ abstract class Slim {
             return $fun();
           } catch (\Exception $e) {
             $self::$error->setService($self);
-            $parts = explode(PHP_EOL, $e->getTraceAsString());           
+            $parts = explode(PHP_EOL, $e->getTraceAsString());
             return $self::$error->report($e);
           }
         } else {

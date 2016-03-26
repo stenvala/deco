@@ -121,7 +121,7 @@ use \deco\essentials\traits\deco\Annotations;
       }
       if (array_key_exists('limit', $query)) {
         $q = $q->limit($query['limit']);
-      }
+      }      
       $data = self::db()->get($q->execute());
       $type = self::getPropertyAnnotationValue($property, 'type', false);
       if ($type == 'array') {
@@ -385,8 +385,8 @@ use \deco\essentials\traits\deco\Annotations;
     } else if (preg_match('#^has[A-Z][A-Za-z]*$#', $name)) {
       $property = preg_replace('#^has#', '', $name);
       if (!in_array($name,self::getPropertyNames())){
-        // should actually throw exception if length is no 1
-        $annCol = array_pop(self::getAnnotationsForPropertiesHavingAnnotation('singular', $property));        
+        // should actually throw exception if length is no 1        
+        $annCol = array_values(self::getAnnotationsForPropertiesHavingAnnotation('singular', $property))[0];                        
         $property = $annCol->reflector->name;
       }
       // need to add foreign key property to search arguments unless it is id (i.e. not array)

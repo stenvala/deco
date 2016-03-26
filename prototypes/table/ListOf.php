@@ -285,7 +285,7 @@ class ListOf {
    * 
    * @return boolean or object
    */
-  public function has($where) {
+  public function has($where) {    
     if (!is_array($where)) {
       if (array_key_exists($where, $this->objects)) {
         return $this->objects[$where];
