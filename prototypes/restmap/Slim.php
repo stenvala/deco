@@ -242,12 +242,15 @@ abstract class Slim {
     $prev = $this;
     foreach ($stack as $method) {
       if ($method == end($stack)) {
+        if (!is_array($permissions)) {
+          $permissions = array($permissions);
+        }
         foreach ($permissions as $perm) {
           try {
-          if ($prev->$method($perm)) {
-            return true;
+            if ($prev->$method($perm)) {
+              return true;
             }
-          } catch (\Exception $e){
+          } catch (\Exception $e) {
             // do nothing
           }
         }
