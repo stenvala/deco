@@ -31,7 +31,7 @@ abstract class Table {
    * @set false
    */
   protected $id;
-  
+
   // Use database
   use \deco\essentials\traits\database\FluentTableDB;
 
@@ -46,7 +46,7 @@ abstract class Table {
   const DELETE = 'DELETE';
 
   private static $table = array();
-  
+
   /**
    * Object can be constructed only if data already exists. In create static
    * create must be used.
@@ -159,17 +159,17 @@ abstract class Table {
         print $ws;
         foreach ($anns as $property => $ann) {
           if (strlen($property) >= $pad) {
-            $property = substr($property, 0, $pad-1);
+            $property = substr($property, 0, $pad - 1);
           }
           print str_pad($property, $pad);
         }
         print "\n";
-      }      
+      }
       print $ws;
       foreach ($anns as $property => $ann) {
         $value = $this->$property;
         if (strlen($value) >= $pad) {
-          $value = substr($value, 0, $pad-1);
+          $value = substr($value, 0, $pad - 1);
         }
         print str_pad($value, $pad);
       }
@@ -178,7 +178,7 @@ abstract class Table {
   }
 
   /**
-   @call$obj->get{Property}(), $obj->get($property) // $force cannot be applied externally
+    @call$obj->get{Property}(), $obj->get($property) // $force cannot be applied externally
    */
   protected function DECOget($property, $force = false) {
     $anns = self::getForDatabaseProperties();
@@ -203,7 +203,7 @@ abstract class Table {
   }
 
   /**
-   @call$obj->getLazy()  // returns also lazy properties, $force cannot be applied externally
+    @call$obj->getLazy()  // returns also lazy properties, $force cannot be applied externally
    */
   protected function DECOgetLazy($force = false) {
     $anns = self::getForDatabaseProperties();
@@ -237,7 +237,7 @@ abstract class Table {
   }
 
   /**
-   @call$obj->get() // returns all but non-lazy properties, $force cannot be applied externally
+    @call$obj->get() // returns all but non-lazy properties, $force cannot be applied externally
    */
   protected function DECOgetAll($force = false) {
     $anns = self::getForDatabaseProperties();
@@ -260,7 +260,7 @@ abstract class Table {
   }
 
   /**
-   @call$obj = $cls::create($dictionary)
+    @call$obj = $cls::create($dictionary)
    */
   static protected function DECOcreate($data) {
     $data = self::checkCreateData($data);
@@ -275,6 +275,11 @@ abstract class Table {
   }
 
   static protected function checkCreateData($data) {
+    foreach ($data as $key => $value) {
+      if (gettype($value) == 'boolean' && !$value) {
+        $data[$key] = 0;
+      }
+    }
     $data = self::DECOstrip($data);
     $anns = self::getForDatabaseProperties();
     commonUtil\Validation::validateObjectData($anns, $data);
@@ -292,7 +297,7 @@ abstract class Table {
     return $data;
   }
 
-  public function is($data) {    
+  public function is($data) {
     foreach ($data as $key => $value) {
       if (is_array($value)) {
         if (!in_array($this->$key, $value)) {
@@ -306,14 +311,14 @@ abstract class Table {
   }
 
   /**
-   @call$obj->set{Property}($value), $obj->set($property, $value) // $force cannot be applied externally
+    @call$obj->set{Property}($value), $obj->set($property, $value) // $force cannot be applied externally
    */
   protected function DECOset($property, $value, $force = false) {
     $this->DECOsetAll(array($property => $value), $force);
   }
 
   /**
-   @call$obj->set($dictionary) // $force cannot be applied externally
+    @call$obj->set($dictionary) // $force cannot be applied externally
    */
   protected function DECOsetAll($data, $force = false) {
     $anns = self::getForDatabaseProperties();
@@ -490,7 +495,7 @@ abstract class Table {
   }
 
   /**
-   @call$cls::strip($dictionary) // strip all non-database properties
+    @call$cls::strip($dictionary) // strip all non-database properties
    */
   static protected function DECOstrip($data) {
     $anns = self::getForDatabaseProperties();

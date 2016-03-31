@@ -25,6 +25,7 @@ class Traverse {
   const NODE = 5;
   const REL = 6;
   const WITH = 7;
+  const ORDER = 8;
 
   private $client;
   private $previous;
@@ -84,6 +85,14 @@ class Traverse {
     $str = $this->previous == SELF::WITH ? ', ' : ' WITH ';
     $str .= $what;
     $this->previous = self::WITH;
+    array_push($this->stack, $str);
+    return $this;
+  }
+  
+  public function order($what){
+    $str = $this->previous == SELF::ORDER ? ', ' : ' ORDER BY ';
+    $str .= $what;
+    $this->previous = SELF::ORDER;
     array_push($this->stack, $str);
     return $this;
   }

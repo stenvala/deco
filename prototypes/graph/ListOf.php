@@ -19,10 +19,8 @@ namespace deco\essentials\prototypes\graph;
 class ListOf {
 
   // Take class annotations to use
-  use \deco\essentials\traits\deco\AnnotationsForClass;
-
-// Take database connection to use
-  use \deco\essentials\traits\database\FluentTableDB;
+  use \deco\essentials\traits\deco\AnnotationsForClass,
+      \deco\essentials\traits\database\FluentNeo4j;
 
   /**
    * order of items is here (id's)   

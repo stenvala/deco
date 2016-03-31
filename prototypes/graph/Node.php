@@ -116,7 +116,7 @@ abstract class Node {
       array('msg' => "Instance of '$cls' was not found based on query.",
       'params' => array('where' => $where)));
     }
-    return self::DECOinitFromNode($nodes[0], $obj);
+    return self::DECOinitFromNode($nodes[0]->values()[0], $obj);
   }
 
   /**
@@ -269,8 +269,8 @@ abstract class Node {
   }
 
   static public function getDataFromNode($node) {
-    $data = $node->values()[0]->values();
-    $data['nodeId'] = $node->values()[0]->identity();
+    $data = $node->values();    
+    $data['nodeId'] = $node->identity();
     return $data;
   }
 

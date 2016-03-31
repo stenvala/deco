@@ -17,8 +17,8 @@ class Validation {
             array_push($failed, $column);
             continue;
           }
-        }
-        $validation = $annCol->getValue('validation', array());
+        }        
+        $validation = $annCol->getValue('validation', array());        
         if (count($validation) == 0) {
           continue;
         }
@@ -43,7 +43,10 @@ class Validation {
       array_push($rules, 'starts,' . $validation['starts']);
     }
     if (array_key_exists('regex', $validation)) {
-      if (!preg_match($validation['regex'], $value)) {
+      $regex = is_array($validation['regex']) ? implode(',',$validation['regex']) : $validation['regex'];
+      error_log($regex);
+      error_log($value);
+      if (!preg_match($regex, $value)) {
         return false;
       }
     }
@@ -55,6 +58,7 @@ class Validation {
         array_push($rules, 'min_len,' . $validation['minLength']);
       }
     } else if ($type == 'integer' || $type == 'timestamp') {
+      
       if ($type == 'integer') {
         array_push($rules, 'integer');
       }

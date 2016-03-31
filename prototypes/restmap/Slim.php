@@ -245,7 +245,7 @@ abstract class Slim {
         if (!is_array($permissions)) {
           $permissions = array($permissions);
         }
-        foreach ($permissions as $perm) {
+        foreach ($permissions as $perm) {         
           try {
             if ($prev->$method($perm)) {
               return true;
