@@ -72,7 +72,7 @@ use \deco\essentials\traits\deco\Annotations;
   }
 
   // load all data recursively 
-  public function loadAll($recursionDepth = 0, $disallow = array(), $allow = array()) {    
+  public function loadAll($recursionDepth = 0, $disallow = array(), $allow = array()) {
     if ($recursionDepth < 0) {
       return $disallow;
     }
@@ -84,13 +84,13 @@ use \deco\essentials\traits\deco\Annotations;
         if (is_array($disallow) && in_array($table, $disallow)) {
           continue;
         }
-        if (is_array($disallow) && !in_array($table, $allow)) {          
+        if (is_array($disallow) && !in_array($table, $allow)) {
           array_push($disallow, $table); // prevents cycles
         }
       }
-      if (!isset($this->$property)) {        
+      if (!isset($this->$property)) {
         $this->DECOloadProperty($property);
-        if (is_object($this->$property)) {          
+        if (is_object($this->$property)) {
           $this->$property->loadAll($recursionDepth - 1, $disallow, $allow);
         }
       }
@@ -106,23 +106,30 @@ use \deco\essentials\traits\deco\Annotations;
     $args = func_get_args();
     $property = $args[0];
     if (count($query = self::getPropertyAnnotationValue($property, 'query', array())) > 0) {
-      $q = self::db()->fluent()->
-                      from($query['table'])->select(null)->select($query['columns']);
-      if (array_key_exists('where', $query)) {
-        foreach ($query['where'] as $key => $value) {
-          if (preg_match('#^{([A-Za-z]*)}$#', $value, $matches)) {
-            $query['where'][$key] = $this->master()->get($matches[1]);
+      if (array_key_exists('table', $query)) {
+        $q = self::db()->fluent()->
+                from($query['table'])->select(null)->select($query['columns']);
+        if (array_key_exists('where', $query)) {
+          foreach ($query['where'] as $key => $value) {
+            if (preg_match('#^{([A-Za-z]*)}$#', $value, $matches)) {
+              $query['where'][$key] = $this->master()->get($matches[1]);
+            }
           }
+          $q = $q->where($query['where']);
         }
-        $q = $q->where($query['where']);
+        if (array_key_exists('orderBy', $query)) {
+          $q = $q->orderBy($query['orderBy']);
+        }
+        if (array_key_exists('limit', $query)) {
+          $q = $q->limit($query['limit']);
+        }
+        $data = self::db()->get($q->execute());
+      } else {
+        while (preg_match('#{([A-Za-z]*)}#', $query[0], $matches)) {
+          $query[0] = preg_replace('#{' . $matches[1] . '}#', $this->master()->get($matches[1]), $query[0]);
+        }        
+        $data = self::db()->get($query[0]);
       }
-      if (array_key_exists('orderBy', $query)) {
-        $q = $q->orderBy($query['orderBy']);
-      }
-      if (array_key_exists('limit', $query)) {
-        $q = $q->limit($query['limit']);
-      }      
-      $data = self::db()->get($q->execute());
       $type = self::getPropertyAnnotationValue($property, 'type', false);
       if ($type == 'array') {
         $this->$property = $data;
@@ -145,13 +152,13 @@ use \deco\essentials\traits\deco\Annotations;
     $masterProperty = $annCol->reflector->name;
     $isCollection = $cls::isListOfService();
     if (!$isCollection &&
-            !self::getPropertyAnnotationValue($property, 'parent', false)
+        !self::getPropertyAnnotationValue($property, 'parent', false)
     ) {
       $foreign = $masterCls::getReferenceToClass($cls);
-      $masterValue = $this->$masterProperty->get($foreign['column']);      
+      $masterValue = $this->$masterProperty->get($foreign['column']);
       $this->$property = new $cls($masterValue);
     } else {
-      $foreign = $cls::getReferenceToClass($masterCls);      
+      $foreign = $cls::getReferenceToClass($masterCls);
       $masterValue = $this->$masterProperty->get($foreign['parentColumn']);
       if (self::getPropertyAnnotationValue($property, 'parent', false)) {
         $this->$property = new $cls($foreign['column'], $masterValue);
@@ -376,17 +383,17 @@ use \deco\essentials\traits\deco\Annotations;
       return $this->DECOinitFromRow(preg_replace('#^initFromRow#', '', $name), $args[0]);
     } else if (preg_match('#^add|create[A-Z][A-Za-z]*$#', $name)) {
       $name = preg_replace('#^add|create#', '', $name);
-      if (!in_array($name,self::getPropertyNames())){
+      if (!in_array($name, self::getPropertyNames())) {
         // should actually throw exception if length is no 1
-        $annCol = array_pop(self::getAnnotationsForPropertiesHavingAnnotation('singular', $name));        
+        $annCol = array_values(self::getAnnotationsForPropertiesHavingAnnotation('singular', $name))[0];
         $name = $annCol->reflector->name;
       }
       return $this->DECOcreate($name, $args[0]);
     } else if (preg_match('#^has[A-Z][A-Za-z]*$#', $name)) {
       $property = preg_replace('#^has#', '', $name);
-      if (!in_array($name,self::getPropertyNames())){
+      if (!in_array($name, self::getPropertyNames())) {
         // should actually throw exception if length is no 1        
-        $annCol = array_values(self::getAnnotationsForPropertiesHavingAnnotation('singular', $property))[0];                        
+        $annCol = array_values(self::getAnnotationsForPropertiesHavingAnnotation('singular', $property))[0];
         $property = $annCol->reflector->name;
       }
       // need to add foreign key property to search arguments unless it is id (i.e. not array)

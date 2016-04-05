@@ -11,12 +11,12 @@ class Validation {
     foreach ($data as $column => $value) {
       if (array_key_exists($column, $anns)) { // Check for enum
         $annCol = $anns[$column];
-        if ($annCol->getValue('type') == 'enum') {
-          $accept = $annCol->getValue('values');
-          if (!in_array($value, $accept)) {
-            array_push($failed, $column);
-            continue;
-          }
+        if ($annCol->getValue('type') == 'enum') {          
+          $accept = $annCol->getValue('values',array());          
+          if (!in_array($value, $accept)) {            
+            array_push($failed, $column);            
+          } 
+          continue;
         }        
         $validation = $annCol->getValue('validation', array());        
         if (count($validation) == 0) {

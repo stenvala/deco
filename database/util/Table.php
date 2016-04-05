@@ -152,7 +152,7 @@ class Table {
     }
     if ($col->getPrimaryKey()) {
       $cmd .= ' PRIMARY KEY';
-    }
+    }    
     return $cmd;
   }
 

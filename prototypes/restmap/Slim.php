@@ -225,7 +225,7 @@ abstract class Slim {
     }
     if (count($clsPermissions) == 0 && count($permissions) == 0) {
       return true;
-    }
+    }    
     // no access
     throw new exc\Permission(array('msg' => "Permission denied."));
   }
@@ -239,15 +239,16 @@ abstract class Slim {
    * @throws exc\Deco If requested parameter cannot be find in args
    */
   protected function hasPermission($permissions, $stack) {
-    $prev = $this;
-    foreach ($stack as $method) {
+    $prev = $this;    
+    foreach ($stack as $method) {      
       if ($method == end($stack)) {
         if (!is_array($permissions)) {
           $permissions = array($permissions);
         }
         foreach ($permissions as $perm) {         
           try {
-            if ($prev->$method($perm)) {
+            // FIX THIS      
+            if ($prev->$method(array('permission' => $perm))) {
               return true;
             }
           } catch (\Exception $e) {
