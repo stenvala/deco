@@ -55,6 +55,9 @@ class Validation {
         array_push($rules, 'max_len,' . $validation['maxLength']);
       }
       if (array_key_exists('minLength', $validation)) {
+        if ($validation['minLength'] === 0 && strlen($value) == 0){
+          return true;
+        }
         array_push($rules, 'min_len,' . $validation['minLength']);
       }
     } else if ($type == 'integer' || $type == 'timestamp') {
@@ -63,7 +66,7 @@ class Validation {
         array_push($rules, 'integer');
       }
       if (array_key_exists('min', $validation)) {
-        array_push($rules, 'min_numeric,' . $validation['min']);
+        array_push($rules, 'min_numeric,' . $validation['min']);        
       }
       if (array_key_exists('max', $validation)) {
         array_push($rules, 'max_numeric,' . $validation['max']);
@@ -71,7 +74,7 @@ class Validation {
     }
     if (count($rules) == 1) {
       return true;
-    }
+    }  
     $valid = \GUMP::is_valid(array('temp' => $value), array('temp' => implode('|', $rules)));
     return $valid === true;
   }
