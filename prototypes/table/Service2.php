@@ -10,7 +10,12 @@
 
 namespace deco\essentials\prototypes\table;
 
-abstract class Service {
+abstract class Service2 {
+
+  /**
+   * @contains abstract
+   */
+  protected $master;
 
   use \deco\essentials\traits\database\FluentTableDB,
       \deco\essentials\traits\deco\Annotations;
@@ -20,17 +25,13 @@ abstract class Service {
     if (count($args) == 0) {
       return;
     }
-    $annCol = self::getMasterAnnotationCollection();
-    $property = $annCol->reflector->name;
-    $cls = $annCol->getValue('contains');
-    if (count($args) == 1) {
-      if ($args[0] instanceof $cls) {
-        $this->$property = $args[0];
-      } else {
-        $this->$property = new $cls($args[0]);
-      }
-    } else if (count($args) == 2) {
-      $this->$property = new $cls($args[0], $args[1]);
+    $cls = self::getMasterClass();
+    if (count($args) == 1 && $args[0] instanceof $cls) {
+      $this->master = $args[0];
+    } else if (count($args) == 1) {
+      $this->master = new $cls($args[0]);
+    } else if (count($args) == 2) {      
+      $this->master = new $cls($args[0], $args[1]);      
     }
   }
 
@@ -39,11 +40,9 @@ abstract class Service {
    * @return instance of self   
    */
   public static function DECOinitMasterFromRow($data) {
-    $annCol = self::getMasterAnnotationCollection();
-    $cls = $annCol->getValue('contains');
-    $property = $annCol->reflector->name;
+    $cls = self::getMasterClass();
     $obj = new static();
-    $obj->$property = $cls::initFromRow($data);
+    $obj->master = $cls::initFromRow($data);
     return $obj;
   }
 
@@ -104,6 +103,7 @@ abstract class Service {
   protected function DECOloadProperty() {
     $args = func_get_args();
     $property = $args[0];
+    // if to be initialized via query
     if (count($query = self::getPropertyAnnotationValue($property, 'query', array())) > 0) {
       if (array_key_exists('table', $query)) {
         $q = self::db()->fluent()->
@@ -123,7 +123,7 @@ abstract class Service {
           $q = $q->limit($query['limit']);
         }
         $data = self::db()->get($q->execute());
-      } else {
+      } else { // query is string
         while (preg_match('#{([A-Za-z]*)}#', $query[0], $matches)) {
           $query[0] = preg_replace('#{' . $matches[1] . '}#', $this->master()->get($matches[1]), $query[0]);
         }
@@ -140,25 +140,23 @@ abstract class Service {
       }
       return $this->$property;
     }
-    array_shift($args);
+    array_shift($args); // remove property name from property value pairs to generate associative array guiding rest of the process
     if (count($args) == 0) {
       $args[0] = array();
     }
     $guide = is_array($args[0]) ? $args[0] : \deco\essentials\util\Arguments::pvToArray($args);
     $cls = self::getPropertyAnnotationValue($property, 'contains');
-    $annCol = self::getMasterAnnotationCollection();
-    $masterCls = $annCol->getValue('contains');
-    $masterProperty = $annCol->reflector->name;
     $isCollection = $cls::isListOfService();
+    $masterCls = self::getMasterClass();
     if (!$isCollection &&
         !self::getPropertyAnnotationValue($property, 'parent', false)
     ) {
       $foreign = $masterCls::getReferenceToClass($cls);
-      $masterValue = $this->$masterProperty->get($foreign['column']);
+      $masterValue = $this->master()->get($foreign['column']);
       $this->$property = new $cls($masterValue);
     } else {
       $foreign = $cls::getReferenceToClass($masterCls);
-      $masterValue = $this->$masterProperty->get($foreign['parentColumn']);
+      $masterValue = $this->master()->get($foreign['parentColumn']);
       if (self::getPropertyAnnotationValue($property, 'parent', false)) {
         $this->$property = new $cls($foreign['column'], $masterValue);
       } else {
@@ -174,22 +172,18 @@ abstract class Service {
   }
 
   public function master() {
-    $annCol = self::getMasterAnnotationCollection();
-    $property = $annCol->reflector->name;
-    return $this->$property;
+    return $this->master;
   }
 
   public function display($indent = 0, $row = false, $first = true) {
-    $annCol = self::getMasterAnnotationCollection();
-    $master = $annCol->reflector->name;
-    if (!isset($this->$master)) {
+    if (!isset($this->master)) {
       return;
     }
-    $this->$master->display($indent, $row, $first);
+    $this->master()->display($indent, $row, $first);
     $properties = self::getAnnotationsForProperties();
     $ws = str_pad('', $indent);
     foreach ($properties as $property => $annCol) {
-      if ($property == $master || !isset($this->$property)) {
+      if ($property == 'master' || !isset($this->$property)) {
         continue;
       }
       if (!is_object($this->$property)) {
@@ -212,7 +206,8 @@ abstract class Service {
       // Get from given object
       $obj = $args[0];
       if (!isset($this->$obj)) {
-        // throw
+        // should actually throw
+        return null;        
       }
       if (is_null($this->$obj)) {
         return null;
@@ -279,7 +274,7 @@ abstract class Service {
    */
   static public function create($data) {
     $obj = new static();
-    $obj->DECOcreate(self::getClassName(), $data);
+    $obj->DECOcreate('master', $data);
     return $obj;
   }
 
@@ -293,12 +288,10 @@ abstract class Service {
       if (!isset($this->$property)) {
         $this->$property = new $cls();
       }
-      if (!is_object($data)) {
-        $annCol = self::getMasterAnnotationCollection();
-        $masterCls = $annCol->getValue('contains');
-        $masterProperty = $annCol->reflector->name;
+      if (!is_object($data)) {        
+        $masterCls = self::getMasterClass();        
         $foreign = $cls::getReferenceToClass($masterCls);
-        $data[$foreign['column']] = $this->$masterProperty->get($foreign['parentColumn']);
+        $data[$foreign['column']] = $this->master()->get($foreign['parentColumn']);
       }
       return $this->$property->create($data);
     }
@@ -306,7 +299,7 @@ abstract class Service {
   }
 
   public function set($data) {
-    return $this->DECOset(self::getClassName(), $data);
+    return $this->DECOset('master', $data);
   }
 
   /**
@@ -329,28 +322,10 @@ abstract class Service {
     return null;
   }
 
-  static protected function getMasterAnnotationCollection() {
-    $property = self::getClassName();
-    return self::getPropertyAnnotations($property);
-  }
-
   static protected function getMasterClass() {
-    $annCol = self::getMasterAnnotationCollection();
+    $annCol = self::getPropertyAnnotations('master');
     return $annCol->getValue('contains');
   }
-
-  /* does exactly the same thing as loadProperty(guide)
-    protected function DECOinitCollection($property, $guide = null) {
-    $cls = self::getPropertyAnnotationValue($property, 'contains');
-    if (func_num_args() == 1) {
-    $this->$property = new ListOf($cls);
-    } else {
-    $this->$property = new ListOf($cls);
-    call_user_func_array(array($this->$property, 'init'), $guide);
-    }
-    return $this->$property;
-    }
-   */
 
   public static function getTable() {
     $cls = self::getMasterClass();
@@ -364,13 +339,16 @@ abstract class Service {
 
   public function __call($name, $args) {
     if (preg_match('#^get[A-Z][A-Za-z]*$#', $name)) {
-      return call_user_func_array(array($this, 'get'), array_merge(array(preg_replace('#^get#', '', $name)), $args));
+      return call_user_func_array(array($this, 'get'), 
+          array_merge(array(lcfirst(preg_replace('#^get#', '', $name))), $args));
     } else if (preg_match('#^load[A-Z][A-Za-z]*$#', $name)) {
-      return call_user_func_array(array($this, 'DECOloadProperty'), array_merge(array(preg_replace('#^load#', '', $name)), $args));
+      return call_user_func_array(array($this, 'DECOloadProperty'), 
+          array_merge(array(lcfirst(preg_replace('#^load#', '', $name))), $args));
     } else if ($name == 'load') {
       return call_user_func_array(array($this, 'DECOloadProperty'), $args);
     } else if (preg_match('#^set[A-Z][A-Za-z]*$#', $name)) {
-      $property = preg_replace('#^set#', '', $name);
+      // don't really know if this works, most likely not, typically setters shouldn't be called this way via rest
+      $property = lcfirst(preg_replace('#^set#', '', $name));
       $cls = self::getPropertyAnnotationValue($property, 'contains');
       if ($cls::isCollectionisListOfService()) {
         return $this->$property->set($args[0], $args[1]);
@@ -379,9 +357,9 @@ abstract class Service {
     } else if (preg_match('#^initFromRow$#', $name)) {
       return $this->DECOinitFromRow($args[0], $args[1]);
     } else if (preg_match('#^initFromRow[A-Z][A-Za-z]*$#', $name)) {
-      return $this->DECOinitFromRow(preg_replace('#^initFromRow#', '', $name), $args[0]);
+      return $this->DECOinitFromRow(lcfirst(preg_replace('#^initFromRow#', '', $name)), $args[0]);
     } else if (preg_match('#^add|create[A-Z][A-Za-z]*$#', $name)) {
-      $name = preg_replace('#^add|create#', '', $name);
+      $name = lcfirst(preg_replace('#^add|create#', '', $name));
       if (!in_array($name, self::getPropertyNames())) {
         // should actually throw exception if length is no 1
         $annCol = array_values(self::getAnnotationsForPropertiesHavingAnnotation('singular', $name))[0];
@@ -389,7 +367,7 @@ abstract class Service {
       }
       return $this->DECOcreate($name, $args[0]);
     } else if (preg_match('#^has[A-Z][A-Za-z]*$#', $name)) {
-      $property = preg_replace('#^has#', '', $name);
+      $property = lcfirst(preg_replace('#^has#', '', $name));
       if (!in_array($name, self::getPropertyNames())) {
         // should actually throw exception if length is no 1        
         $annCol = array_values(self::getAnnotationsForPropertiesHavingAnnotation('singular', $property))[0];
@@ -397,23 +375,21 @@ abstract class Service {
       }
       // need to add foreign key property to search arguments unless it is id (i.e. not array)
       if (is_array($args[0])) {
-        $childCls = self::getPropertyAnnotationValue($property, 'contains');
-        $annCol = self::getMasterAnnotationCollection();
-        $masterCls = $annCol->getValue('contains');
-        $masterProperty = $annCol->reflector->name;
+        $childCls = self::getPropertyAnnotationValue($property, 'contains');        
+        $masterCls = self::getMasterClass();        
         $foreign = $childCls::getReferenceToClass($masterCls);
-        $args[0][$foreign['column']] = $this->$masterProperty->get($foreign['parentColumn']);
+        $args[0][$foreign['column']] = $this->master()->get($foreign['parentColumn']);
       }
       if (!isset($this->$property)) {
         $this->DECOinitCollection($property);
       }
       return $this->$property->has($args[0]);
     } if (preg_match('#^delete[A-Z][A-Za-z]*$#', $name)) {
-      $property = preg_replace('"^delete', '', $name);
+      $property = lcfirst(preg_replace('"^delete', '', $name));
       return $this->DECOdelete($property);
     } else if ($name == 'delete') {
       if (count($args) == 0) {
-        return $this->DECOdelete(self::getClassName());
+        return $this->DECOdelete('master');
       }
       return $this->DECOdelete($args[0]);
     } else if (array_key_exists($name, self::getAnnotationsForProperties())) {

@@ -13,11 +13,12 @@ class AnnotationReader {
     $lines = explode(PHP_EOL, $docComment);
     $collection = new AnnotationCollection();
     $ann = null;
-    foreach ($lines as $line) {      
-      $line = preg_replace('#//.*$#', '', $line); // remove comment at the end of line
-      if (preg_match('#\*\s@([a-zA-z]*)([\([private|protected|public]\)])?\s(.*)#', $line, $matches)) {        
+    foreach ($lines as $line) {
+      $line = preg_replace('#//.*$#', '', $line); // remove comment at the end of line      
+      if (preg_match('#\*\s@([a-zA-z]*)([\([private|protected|public]\)])?(\((string|array|dictionary|int|bool)\))?\s(.*)#', $line, $matches)) {        
         $annotation = trim($matches[1]);
         $visibility = $matches[2];
+        $type = $matches[4];
         if (strlen($visibility) == 0) {
           if ($reflector instanceof \ReflectionProperty ||
               $reflector instanceof \ReflectionMethod) {
@@ -36,15 +37,15 @@ class AnnotationReader {
           preg_match('#\((.*)\)#', $visibility, $vis);
           $visibility = $vis[1];
         }
-        $value = self::parseAnnotationValue($matches[3]);
-        if ($collection->hasAnnotation($annotation)){
+        $value = self::parseAnnotationValue($matches[5], $type);
+        if ($collection->hasAnnotation($annotation)) {
           $collection->get($annotation)->merge($value);
         } else {
           $ann = new Annotation($annotation, $value, $visibility);
           $collection->set($ann);
         }
       } else if (preg_match('#\\\\(.*)#', $line, $matches)) { // needs to be array or dictionary
-        $newValue = self::parseAnnotationValue($matches[1]);            
+        $newValue = self::parseAnnotationValue($matches[1]);
         // picks previous annotation
         if (is_null($ann)) {
           throw new exc\Annotation(array('msg' => 'Cannot continue unexisting annotation.'));
@@ -176,33 +177,43 @@ class AnnotationReader {
     return $from;
   }
 
-  static private function parseAnnotationValue($value) {
-    $value = trim($value);       
-    if (preg_match('#:#', $value)) {      
-      $array = array();      
-      while (true){                
-        preg_match('#^([^\:]*)#', $value, $matches);        
-        if (count($matches) == 0 || strlen($matches[1]) == 0){
+  static private function parseAnnotationValue($value, $type = '') {
+    $value = trim($value);
+    // now only single value type annotations are parsed
+    if ($type != '') {
+      switch ($type) {
+        case $type == 'string':
+          return $value;
+        default:          
+          die('Did not understand defined value type for annotation');
+      }
+    }
+
+    if (preg_match('#:#', $value)) {
+      $array = array();
+      while (true) {
+        preg_match('#^([^\:]*)#', $value, $matches);
+        if (count($matches) == 0 || strlen($matches[1]) == 0) {
           break;
         }
-        $key = trim($matches[1]);        
-        $value = trim(str_replace("$key:","",$value));        
+        $key = trim($matches[1]);
+        $value = trim(str_replace("$key:", "", $value));
         // search for rest
-        if (substr($value,0,1) == '"'){
+        if (substr($value, 0, 1) == '"') {
           // make this recursive in the future, it should be
           // http://stackoverflow.com/questions/17786433/regex-to-match-nested-json-objects
           // (?<=\{)\s*[^{]*?(?=[\},])
-          
-          preg_match('#"(.*)"(;|$)#',$value,$matches);          
-          $array[$key] = self::parseAnnotationValue($matches[1]);                    
-          $value = substr($value,strlen($matches[0])+1);
-        } else {          
-          preg_match('#^[^;|$]*#',$value,$matches);          
+
+          preg_match('#"(.*)"(;|$)#', $value, $matches);
+          $array[$key] = self::parseAnnotationValue($matches[1]);
+          $value = substr($value, strlen($matches[0]) + 1);
+        } else {
+          preg_match('#^[^;|$]*#', $value, $matches);
           $array[$key] = $matches[0];
-          $value = substr($value,strlen($matches[0])+1);
+          $value = substr($value, strlen($matches[0]) + 1);
         }
-      }           
-      $value = $array;       
+      }
+      $value = $array;
     } else if (preg_match('#,#', $value)) {
       $array = explode(',', $value);
       foreach ($array as $key => $value) {

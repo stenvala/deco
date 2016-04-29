@@ -117,32 +117,37 @@ abstract class Service {
     $property = $args[0];
     $cls = self::getPropertyAnnotationValue($property, 'contains');
     $annCol = self::getPropertyAnnotations($property);
-    $relation = $annCol->getValue('relation');
-    $label = $relation['label'];
-    switch ($relation['direction']) {
-      case 'OUTGOING':
-        $direction = 'from';
-        break;
-      case 'INCOMING':
-        $direction = 'to';
-        break;
-      default:
-        $direction = 'undirected';
-    }
-    $traverse = self::db()->fluent()->traverse()
-        ->start('n', $this->master()->get('nodeId'))
-        ->with('n')
-        ->match()
-        ->node('n')
-        ->$direction('r', $label)
-        ->node('m')
-        ->ret('m,r');
-    /*
-      if (count($where)) {
-      $traverse->where($where);
+    // check if there is directly query    
+    if ($cypher = $annCol->getValue('query', false)) {      
+      while (preg_match('#{([a-zA-Z]*)}#',$cypher,$matches)){
+        $prop = $matches[1];
+        $cypher = preg_replace("#\{$prop\}#",$this->master->get($matches[1]),$cypher);
+      }      
+      $results = self::db()->fluent()->run($cypher)->getRecords();
+    } else { 
+      // build query
+      $relation = $annCol->getValue('relation');
+      $label = $relation['label'];
+      switch ($relation['direction']) {
+        case 'OUTGOING':
+          $direction = 'from';
+          break;
+        case 'INCOMING':
+          $direction = 'to';
+          break;
+        default:
+          $direction = 'undirected';
       }
-     */
-    $results = $traverse->execute();
+      $query = self::db()->fluent()->traverse()
+          ->start('n', $this->master()->get('nodeId'))
+          ->with('n')
+          ->match()
+          ->node('n')
+          ->$direction('r', $label)
+          ->node('m')
+          ->ret('m,r');
+      $results = $query->execute();
+    }
     if ($cls::isListOfService()) {
       if (!isset($this->$property)) {
         $this->$property = new $cls(); // when loaded, new is set
@@ -158,7 +163,9 @@ abstract class Service {
         }
       }
     } else {
-      $this->$property = $cls::initFromNode($results[0]->values()[0]);
+      if (count($results)){
+        $this->$property = $cls::initFromNode($results[0]->values()[0]);
+      }
     }
     return $this->$property;
   }
