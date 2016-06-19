@@ -40,7 +40,8 @@ class Error implements ErrorReportingInterface {
 
   public function getErrorReportProduction() {
     $code = $this->exception->getCode();
-    $this->service->setStatusCode($code);
+    $code = 500;
+    //$this->service->setStatusCode($code);
     $debugInfo = array();
     $msg = $this->exception->getMessage();
     if ($msg != '') {

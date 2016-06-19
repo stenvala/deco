@@ -20,12 +20,10 @@ class Type {
   /**
    * Converts variable to correct type according to its annotation collection
    * 
-   * @param any &$value reference parameter
-   * @param \deco\essentials\util\annotation\AnnotationCollection $propertyAnnotations
-   * @param \deco\essentials\util\annotation\AnnotationCollection $classAnnotations   
+   * @param any &$value reference parameter   
    * @throws exc\Deco
    */
-  public static function convertTo(&$value, \deco\essentials\util\annotation\AnnotationCollection $propertyAnnotations, \deco\essentials\util\annotation\AnnotationCollection $classAnnotations = null) {
+  public static function convertTo(&$value, \deco\essentials\util\annotation\AnnotationCollection $propertyAnnotations) {
     $type = $propertyAnnotations->getValue('type');
     if (is_null($value) || $value === 'NULL') {
       $value = null;
@@ -41,7 +39,7 @@ class Type {
         $value = filter_var($value, FILTER_VALIDATE_BOOLEAN);
         break;
       case 'timestamp':
-        if (is_numeric($value)) {          
+        if (is_numeric($value)) {
           settype($value, 'integer');
         } else {
           $dt = new \DateTime($value);
@@ -56,6 +54,13 @@ class Type {
         }
         break;
       case 'date':
+        break;
+      case 'json':
+        if (is_array($value)) {          
+          $value = json_encode($value);          
+        } else {
+          $value = json_decode($value, true);
+        }
         break;
       default:
         throw new exc\Deco(array('msg' => "Cannot convert variable '$value' to '$type'",

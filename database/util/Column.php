@@ -175,6 +175,8 @@ class Column {
     } else if ($type == 'enum') {
       $values = $annCol->getValue('values');      
       $type = " enum('" . implode("','", $values) . "')";
+    } else if ($type == 'json'){
+      return 'text';
     }
     // Otherwise just return type
     return $type;

@@ -136,7 +136,7 @@ abstract class Table {
     $anns = self::getForDatabaseProperties();
     $annCol = self::getAnnotationsForClass();
     foreach ($data as $key => $value) {
-      util\Type::convertTo($value, $anns[$key], $annCol);
+      util\Type::convertTo($value, $anns[$key]);
       $this->$key = $value;
     }
   }
@@ -267,6 +267,11 @@ abstract class Table {
     self::db()->transactionStart();
     $data = self::checkOrderColumnConsistencyOnCreate($data);
     self::maintainOrderColumnConsistency(self::CREATE, $data);
+    foreach ($data as $property => $value) {
+      if (is_array($value)) {
+        $data[$property] = json_encode($value);
+      }
+    }
     self::db()->fluent()->
         insertInto(self::getTable())->values($data)->execute();
     $id = self::db()->getLastInsertId();
@@ -331,8 +336,15 @@ abstract class Table {
       }
       commonUtil\Validation::validateObjectData($anns, $data, false);
     }
+
+
     if (count($data) == 0) {
       return;
+    }
+    foreach ($data as $property => $value) {
+      if (is_array($value)) {
+        $data[$property] = json_encode($value);
+      }
     }
     // don't really understand why this is needed to be done
     foreach ($data as $key => $value) {
